@@ -20,6 +20,7 @@ type ListingRow = {
   card_name: string;
   type: ListingType;
   status: ListingStatus;
+  language: string | null;
   created_at: string;
   events: EmbeddedEvent | EmbeddedEvent[] | null;
   interests: EmbeddedInterest[] | null;
@@ -83,6 +84,7 @@ export default async function MyListingsPage({
       card_name,
       type,
       status,
+      language,
       created_at,
       events(name),
       interests(
@@ -199,6 +201,14 @@ export default async function MyListingsPage({
                             {formatDateTime(listing.created_at)}
                           </dd>
                         </div>
+                        {listing.language ? (
+                          <div>
+                            <dt className="font-medium text-zinc-500 dark:text-zinc-400">
+                              Language
+                            </dt>
+                            <dd className="mt-0.5">{listing.language}</dd>
+                          </div>
+                        ) : null}
                         <div>
                           <dt className="font-medium text-zinc-500 dark:text-zinc-400">
                             Interests

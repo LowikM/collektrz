@@ -20,6 +20,7 @@ type Listing = {
   condition: string | null;
   set_name: string | null;
   notes: string | null;
+  language: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -66,7 +67,7 @@ export default async function EventDetailPage({
   const { data: listings, error: listingsError } = await supabase
     .from("listings")
     .select(
-      "id, event_id, user_id, type, card_name, trade_for, status, condition, set_name, notes, created_at, updated_at",
+      "id, event_id, user_id, type, card_name, trade_for, status, condition, set_name, notes, language, created_at, updated_at",
     )
     .eq("event_id", id)
     .eq("status", "active")
@@ -191,6 +192,14 @@ export default async function EventDetailPage({
                             Condition
                           </dt>
                           <dd>{listing.condition}</dd>
+                        </div>
+                      ) : null}
+                      {listing.language ? (
+                        <div>
+                          <dt className="font-medium text-zinc-500 dark:text-zinc-400">
+                            Language
+                          </dt>
+                          <dd>{listing.language}</dd>
                         </div>
                       ) : null}
                       {listing.trade_for ? (

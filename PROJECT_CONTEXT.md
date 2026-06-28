@@ -11,6 +11,7 @@ Web app for Pokémon collectors to browse in-person trading events and post list
 - **Tailwind CSS v4**
 - **Supabase** — Postgres, Auth, RLS (`@supabase/ssr`, `@supabase/supabase-js`)
 - Env: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` (`.env.local`)
+- Optional: `POKEMON_TCG_API_KEY` (server-only, for Pokémon TCG API rate limits)
 
 ## Current Supabase schema
 
@@ -33,7 +34,8 @@ Web app for Pokémon collectors to browse in-person trading events and post list
 | `type` | enum `listing_type`: `want`, `trade`, `sale` |
 | `card_name`, `card_ref`, `trade_for` | text (`card_ref` required; MVP derives from `card_name`) |
 | `status` | enum `listing_status`: `active`, `completed`, `removed`, `reserved` |
-| `condition`, `set_name`, `notes`, `target_price` | text (optional) |
+| `condition`, `set_name`, `notes`, `target_price`, `language` | text (optional) |
+| `tcg_api_card_id`, `card_number`, `set_id` | text (optional; Pokémon TCG API metadata, snapshotted) |
 | `collection_item_id` | uuid → `collection_items.id` (optional) |
 | `created_at`, `updated_at` | timestamptz |
 
@@ -44,7 +46,8 @@ Web app for Pokémon collectors to browse in-person trading events and post list
 | `user_id` | uuid → `users.id` |
 | `item_kind` | enum `collection_item_kind`: `card`, `sealed` |
 | `card_name`, `card_ref` | text (`card_ref` derived from `card_name`) |
-| `set_name`, `condition`, `notes` | text (optional) |
+| `set_name`, `condition`, `notes`, `language` | text (optional) |
+| `tcg_api_card_id`, `card_number`, `set_id` | text (optional; Pokémon TCG API metadata) |
 | `quantity` | integer (default 1) |
 | `created_at`, `updated_at` | timestamptz |
 
@@ -75,6 +78,8 @@ Web app for Pokémon collectors to browse in-person trading events and post list
 - My Listings page (`/my-listings`) — owner's listings with interested users and status updates
 - My Collection page (`/my-collection`) — CRUD for personal `collection_items`
 - Create listing from collection on `/events/[id]/new-listing` — picker prefills form; snapshot + optional `collection_item_id`
+- Optional card/sealed **language** (dropdown) on collection items and listings; snapshotted on listing create
+- Pokémon TCG API **Phase A**: migration + `lib/pokemon-tcg.ts` + authenticated `GET /api/card-search` (no UI yet)
 
 ## Existing routes
 
@@ -91,8 +96,9 @@ Web app for Pokémon collectors to browse in-person trading events and post list
 
 ## Remaining roadmap
 
-1. **Join event** — use `join_code` to associate users with events
-2. **Interest messages** — optional `message` field (not in MVP)
+1. **Pokémon TCG API Phase B–D** — My Collection autocomplete, form prefill, listing propagation
+2. **Join event** — use `join_code` to associate users with events
+3. **Interest messages** — optional `message` field (not in MVP)
 
 ## Important implementation decisions
 
@@ -101,4 +107,4 @@ Web app for Pokémon collectors to browse in-person trading events and post list
 - **Session refresh in middleware** — required so Server Components can read auth cookies
 - **Public events, protected profile** — events/listings browsable without login; auth needed for user-specific actions
 - **Server Components + Server Actions** for data fetching and mutations (no client Supabase for auth forms yet)
-- **Schema-driven UI** — events use `start_date`/`end_date` (not `date`/`description`); listings use enums for `type` and `status`; only `active` listings show on event pages; owners update status on `/my-listings`; `card_ref` is required in DB and derived from `card_name.trim().toLowerCase()` for listings and collection items; listing rows snapshot collection fields at create time (editing collection later does not change listings); interests are one per user per listing with `message: null` for MVP
+- **Schema-driven UI** — events use `start_date`/`end_date` (not `date`/`description`); listings use enums for `type` and `status`; only `active` listings show on event pages; owners update status on `/my-listings`; `card_ref` is required in DB and derived from `card_name.trim().toLowerCase()` for listings and collection items; listing rows snapshot collection fields at create time (editing collection later does not change listings); optional `language` uses app dropdown values (English, Japanese, etc.) stored as text; interests are one per user per listing with `message: null` for MVP

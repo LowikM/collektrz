@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from "react";
 
+import { LanguageSelect } from "@/components/LanguageSelect";
+
 type CollectionItem = {
   id: string;
   item_kind: "card" | "sealed";
@@ -9,6 +11,7 @@ type CollectionItem = {
   set_name: string | null;
   condition: string | null;
   notes: string | null;
+  language: string | null;
 };
 
 type NewListingFormProps = {
@@ -34,6 +37,7 @@ export function NewListingForm({
   const [setName, setSetName] = useState("");
   const [condition, setCondition] = useState("");
   const [notes, setNotes] = useState("");
+  const [language, setLanguage] = useState("");
 
   const filteredItems = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -45,6 +49,7 @@ export function NewListingForm({
         item.set_name ?? "",
         item.condition ?? "",
         item.notes ?? "",
+        item.language ?? "",
         ITEM_KIND_LABELS[item.item_kind],
       ]
         .join(" ")
@@ -60,6 +65,7 @@ export function NewListingForm({
     setSetName(item.set_name ?? "");
     setCondition(item.condition ?? "");
     setNotes(item.notes ?? "");
+    setLanguage(item.language ?? "");
   }
 
   function clearSelection() {
@@ -126,6 +132,11 @@ export function NewListingForm({
                         {item.set_name ? (
                           <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
                             Set: {item.set_name}
+                          </p>
+                        ) : null}
+                        {item.language ? (
+                          <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
+                            Language: {item.language}
                           </p>
                         ) : null}
                       </button>
@@ -239,6 +250,18 @@ export function NewListingForm({
             type="text"
             value={setName}
             onChange={(event) => setSetName(event.target.value)}
+            className={inputClassName}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <label htmlFor="language" className="text-sm font-medium">
+            Language
+          </label>
+          <LanguageSelect
+            id="language"
+            value={language}
+            onChange={(event) => setLanguage(event.target.value)}
             className={inputClassName}
           />
         </div>

@@ -5,6 +5,7 @@ import {
   deleteCollectionItem,
   updateCollectionItem,
 } from "@/app/my-collection/actions";
+import { LanguageSelect } from "@/components/LanguageSelect";
 import { createClient } from "@/lib/supabase/server";
 
 type ItemKind = "card" | "sealed";
@@ -17,6 +18,7 @@ type CollectionItem = {
   set_name: string | null;
   condition: string | null;
   notes: string | null;
+  language: string | null;
   quantity: number;
   created_at: string;
   updated_at: string;
@@ -58,7 +60,7 @@ export default async function MyCollectionPage({
   const { data, error } = await supabase
     .from("collection_items")
     .select(
-      "id, item_kind, card_name, card_ref, set_name, condition, notes, quantity, created_at, updated_at",
+      "id, item_kind, card_name, card_ref, set_name, condition, notes, language, quantity, created_at, updated_at",
     )
     .eq("user_id", user.id)
     .order("created_at", { ascending: false });
@@ -160,6 +162,15 @@ export default async function MyCollectionPage({
               </div>
             </div>
             <div className="space-y-2">
+              <label htmlFor="create-language" className="text-sm font-medium">
+                Language
+              </label>
+              <LanguageSelect
+                id="create-language"
+                className={inputClassName}
+              />
+            </div>
+            <div className="space-y-2">
               <label htmlFor="create-notes" className="text-sm font-medium">
                 Notes
               </label>
@@ -206,6 +217,11 @@ export default async function MyCollectionPage({
                         <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium uppercase tracking-wide text-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
                           {ITEM_KIND_LABELS[item.item_kind]}
                         </span>
+                        {item.language ? (
+                          <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
+                            {item.language}
+                          </span>
+                        ) : null}
                         <p className="text-xs text-zinc-500 dark:text-zinc-500">
                           Added {formatDateTime(item.created_at)}
                         </p>
@@ -296,6 +312,19 @@ export default async function MyCollectionPage({
                               className={inputClassName}
                             />
                           </div>
+                        </div>
+                        <div className="space-y-2">
+                          <label
+                            htmlFor={`language-${item.id}`}
+                            className="text-sm font-medium"
+                          >
+                            Language
+                          </label>
+                          <LanguageSelect
+                            id={`language-${item.id}`}
+                            defaultValue={item.language ?? ""}
+                            className={inputClassName}
+                          />
                         </div>
                         <div className="space-y-2">
                           <label

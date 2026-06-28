@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
+import { isCardLanguage } from "@/lib/languages";
 import { createClient } from "@/lib/supabase/server";
 
 const LISTING_TYPES = ["want", "trade", "sale"] as const;
@@ -77,6 +78,13 @@ export async function createListing(eventId: string, formData: FormData) {
   const condition = getOptionalText(formData, "condition");
   const setName = getOptionalText(formData, "set_name");
   const notes = getOptionalText(formData, "notes");
+  const languageValue = getOptionalText(formData, "language");
+
+  if (languageValue && !isCardLanguage(languageValue)) {
+    redirect(
+      `/events/${eventId}/new-listing?error=${encodeURIComponent("Please select a valid language.")}`,
+    );
+  }
 
   const { error } = await supabase.from("listings").insert({
     event_id: eventId,
@@ -91,6 +99,7 @@ export async function createListing(eventId: string, formData: FormData) {
     ...(condition ? { condition } : {}),
     ...(setName ? { set_name: setName } : {}),
     ...(notes ? { notes } : {}),
+    ...(languageValue ? { language: languageValue } : {}),
   });
 
   if (error) {

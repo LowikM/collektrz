@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
+import { isCardLanguage } from "@/lib/languages";
 import { createClient } from "@/lib/supabase/server";
 
 const ITEM_KINDS = ["card", "sealed"] as const;
@@ -30,6 +31,7 @@ function parseCollectionFields(formData: FormData):
         set_name: string | null;
         condition: string | null;
         notes: string | null;
+        language: string | null;
         quantity: number;
       };
     } {
@@ -53,6 +55,11 @@ function parseCollectionFields(formData: FormData):
   }
 
   const normalizedCardName = cardName.trim();
+  const languageValue = getOptionalText(formData, "language");
+
+  if (languageValue && !isCardLanguage(languageValue)) {
+    return { error: "Please select a valid language." };
+  }
 
   return {
     data: {
@@ -62,6 +69,7 @@ function parseCollectionFields(formData: FormData):
       set_name: getOptionalText(formData, "set_name"),
       condition: getOptionalText(formData, "condition"),
       notes: getOptionalText(formData, "notes"),
+      language: languageValue,
       quantity,
     },
   };
