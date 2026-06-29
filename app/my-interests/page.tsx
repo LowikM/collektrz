@@ -6,6 +6,8 @@ import {
   ListingCardThumbnail,
   ListingOfficialCardBadges,
 } from "@/components/ListingOfficialCard";
+import { MessageStatusAlert } from "@/components/MessageStatusAlert";
+import { SendMessageForm } from "@/components/SendMessageForm";
 import { getCardImagesByIds } from "@/lib/pokemon-tcg";
 import { createClient } from "@/lib/supabase/server";
 
@@ -85,9 +87,9 @@ function getEventId(events: EmbeddedListing["events"]) {
 export default async function MyInterestsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; messageSent?: string }>;
 }) {
-  const { error: pageError } = await searchParams;
+  const { error: pageError, messageSent } = await searchParams;
   const supabase = await createClient();
   const {
     data: { user },
@@ -153,6 +155,8 @@ export default async function MyInterestsPage({
             {pageError}
           </p>
         ) : null}
+
+        <MessageStatusAlert messageSent={messageSent === "1"} />
 
         {error ? (
           <p
@@ -273,17 +277,24 @@ export default async function MyInterestsPage({
                           </div>
                         </dl>
 
-                        <div className="mt-4 flex flex-wrap items-center gap-3">
-                          <form action={removeListingInterest}>
-                            <button type="submit" className={buttonClassName}>
-                              ✓ Interested
-                            </button>
-                          </form>
-                          {listing.status !== "active" ? (
-                            <span className="text-sm text-zinc-600 dark:text-zinc-400">
-                              Listing status: {listing.status}
-                            </span>
-                          ) : null}
+                        <div className="mt-4 space-y-3">
+                          <div className="flex flex-wrap items-center gap-3">
+                            <form action={removeListingInterest}>
+                              <button type="submit" className={buttonClassName}>
+                                ✓ Interested
+                              </button>
+                            </form>
+                            {listing.status !== "active" ? (
+                              <span className="text-sm text-zinc-600 dark:text-zinc-400">
+                                Listing status: {listing.status}
+                              </span>
+                            ) : null}
+                          </div>
+                          <SendMessageForm
+                            recipientId={listing.user_id}
+                            listingId={listing.id}
+                            listingLabel={listing.card_name}
+                          />
                         </div>
                       </div>
                     </div>

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { EventListingFilters } from "@/components/EventListingFilters";
 import { ListingInterest } from "@/components/ListingInterest";
+import { MessageStatusAlert } from "@/components/MessageStatusAlert";
 import {
   ListingCardThumbnail,
   ListingOfficialCardBadges,
@@ -77,6 +78,7 @@ export default async function EventDetailPage({
     typeof resolvedSearchParams.error === "string"
       ? resolvedSearchParams.error
       : undefined;
+  const messageSent = resolvedSearchParams.messageSent === "1";
   const filters = parseListingFilters(resolvedSearchParams);
   const supabase = await createClient();
 
@@ -210,6 +212,8 @@ export default async function EventDetailPage({
 
           <EventListingFilters eventId={event.id} filters={filters} />
 
+          <MessageStatusAlert messageSent={messageSent} />
+
           {pageError ? (
             <p
               className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
@@ -307,6 +311,7 @@ export default async function EventDetailPage({
                           <ListingInterest
                             listingId={listing.id}
                             listingOwnerId={listing.user_id}
+                            listingCardName={listing.card_name}
                             currentUserId={user?.id ?? null}
                             isInterested={interestedListingIds.has(listing.id)}
                             interestCount={

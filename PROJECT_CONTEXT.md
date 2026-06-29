@@ -61,11 +61,23 @@ Web app for Pokémon collectors to browse in-person trading events and post list
 
 Unique constraint on `(listing_id, user_id)`. Replaces legacy `interests` table.
 
+### `public.messages`
+| Column | Type |
+|---|---|
+| `id` | uuid |
+| `sender_id` | uuid → `users.id` (ON DELETE CASCADE) |
+| `recipient_id` | uuid → `users.id` (ON DELETE CASCADE) |
+| `listing_id` | uuid → `listings.id` (ON DELETE SET NULL, optional) |
+| `parent_message_id` | uuid → `messages.id` (ON DELETE SET NULL, optional) |
+| `body` | text |
+| `read_at` | timestamptz (optional; null = unread for recipient) |
+| `created_at` | timestamptz |
+
 ## Authentication flow
 
 - Cookie-based Supabase SSR via `lib/supabase/client.ts`, `lib/supabase/server.ts`, `middleware.ts`
 - Middleware calls `getUser()` to refresh sessions and redirect:
-  - unauthenticated `/profile`, `/my-listings`, `/my-interests`, `/my-matches`, `/my-collection` → `/login`
+  - unauthenticated `/profile`, `/my-listings`, `/my-interests`, `/my-matches`, `/messages`, `/my-collection` → `/login`
   - authenticated `/login` → `/profile`
 - Server actions in `app/login/actions.ts`: `signIn`, `signUp`, `signOut`
 
@@ -87,6 +99,8 @@ Unique constraint on `(listing_id, user_id)`. Replaces legacy `interests` table.
 - Pokémon TCG API **Phase D**: official card metadata snapshotted on listing create; thumbnails/badges on event + My Listings pages
 - **Event listing search & filters** on `/events/[id]` — URL query params (`q`, `type`, `language`, `condition`, `official`, `sort`); Supabase-side filtering
 - **Matching engine (V2):** protected `/my-matches` — user-centric groups by event + other user; want↔offer card sets with priority categories; computed in memory
+- **Contact flow (MVP):** `messages` table; `sendMessage` server action; inline contact forms on matches/listings/interests; protected `/messages` inbox
+- **Message replies + unread:** `replyToMessage`, `markMessageRead`; `read_at` + `parent_message_id`; unread badge in navbar
 
 ## Existing routes
 
@@ -99,6 +113,7 @@ Unique constraint on `(listing_id, user_id)`. Replaces legacy `interests` table.
 | `/my-listings` | Protected | Owner listings, interested users, status updates |
 | `/my-interests` | Protected | Listings the user has marked as interested |
 | `/my-matches` | Protected | User-centric trade matches grouped by event + collector |
+| `/messages` | Protected | Sent and received messages inbox |
 | `/events` | Public | Event list |
 | `/events/[id]` | Public | Event detail |
 | `/events/[id]/new-listing` | Protected | Create listing form with collection picker |
@@ -106,7 +121,7 @@ Unique constraint on `(listing_id, user_id)`. Replaces legacy `interests` table.
 ## Remaining roadmap
 
 1. **Join event** — use `join_code` to associate users with events
-2. **Interest messages / chat / notifications** — future enhancements (not in MVP)
+2. **Real-time chat / threaded conversations / notifications** — future enhancements (not in MVP)
 
 ## Important implementation decisions
 
@@ -117,3 +132,5 @@ Unique constraint on `(listing_id, user_id)`. Replaces legacy `interests` table.
 - **Server Components + Server Actions** for data fetching and mutations (no client Supabase for auth forms yet)
 - **Schema-driven UI** — events use `start_date`/`end_date` (not `date`/`description`); listings use enums for `type` and `status`; only `active` listings show on event pages; owners update status on `/my-listings`; `card_ref` is required in DB and derived from `card_name.trim().toLowerCase()` for listings and collection items; listing rows snapshot collection fields at create time (editing collection later does not change listings); optional `language` uses app dropdown values (English, Japanese, etc.) stored as text; one interest per user per listing via `listing_interests`; event listing filters use GET forms and URL search params with Supabase `ilike`/`eq` queries (no in-memory filtering)
 - **Matching engine (V2):** `/my-matches` groups by event + other user; dedupes cards by `tcg_api_card_id` or `card_ref`; categories: perfect trade, strong want, direct, reverse; absolute counts only (no percentages); computed on page load (no matches table)
+- **Contact flow (MVP):** one-way `messages` rows; `sendMessage(recipientId, listingId, formData)` in `app/messages/actions.ts`; RLS limits read to sender/recipient; no real-time chat
+- **Message replies + unread:** `replyToMessage(messageId, formData)` links via `parent_message_id`; inbox marks received messages read on open; navbar shows `Messages (N)` for unread count

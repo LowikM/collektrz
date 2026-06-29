@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { SendMessageForm } from "@/components/SendMessageForm";
 import {
   ListingCardThumbnail,
   ListingOfficialCardBadges,
@@ -169,6 +170,7 @@ export function UserTradeMatchCard({
             cards={match.iHaveForThem}
             cardImagesById={cardImagesById}
           />
+          <SendMessageForm recipientId={match.otherUserId} />
         </div>
       </div>
     </article>

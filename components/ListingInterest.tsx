@@ -4,11 +4,13 @@ import {
   addInterest,
   removeInterest,
 } from "@/app/listing-interests/actions";
+import { SendMessageForm } from "@/components/SendMessageForm";
 import { formatInterestCount } from "@/lib/listing-interests";
 
 type ListingInterestProps = {
   listingId: string;
   listingOwnerId: string;
+  listingCardName: string;
   currentUserId: string | null;
   isInterested: boolean;
   interestCount: number;
@@ -20,6 +22,7 @@ const buttonClassName =
 export function ListingInterest({
   listingId,
   listingOwnerId,
+  listingCardName,
   currentUserId,
   isInterested,
   interestCount,
@@ -59,6 +62,16 @@ export function ListingInterest({
           ❤️ I&apos;m interested
         </Link>
       )}
+
+      {currentUserId ? (
+        <div className="w-full basis-full">
+          <SendMessageForm
+            recipientId={listingOwnerId}
+            listingId={listingId}
+            listingLabel={listingCardName}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }

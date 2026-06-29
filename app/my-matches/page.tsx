@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { UserTradeMatchCard } from "@/components/UserTradeMatchCard";
+import { MessageStatusAlert } from "@/components/MessageStatusAlert";
 import {
   findUserTradeMatches,
   type MatchListing,
@@ -63,7 +64,12 @@ function toMatchListing(listing: ListingRow): MatchListing {
   };
 }
 
-export default async function MyMatchesPage() {
+export default async function MyMatchesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string; messageSent?: string }>;
+}) {
+  const { error: pageError, messageSent } = await searchParams;
   const supabase = await createClient();
   const {
     data: { user },
@@ -175,6 +181,17 @@ export default async function MyMatchesPage() {
             active want and offer listings.
           </p>
         </div>
+
+        {pageError ? (
+          <p
+            className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
+            role="alert"
+          >
+            {pageError}
+          </p>
+        ) : null}
+
+        <MessageStatusAlert messageSent={messageSent === "1"} />
 
         {userListings.length === 0 ? (
           <p className="rounded-xl border border-dashed border-zinc-300 px-6 py-12 text-center text-sm text-zinc-600 dark:border-zinc-700 dark:text-zinc-400">

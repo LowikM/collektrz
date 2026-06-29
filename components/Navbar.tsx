@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { fetchUnreadMessageCountForCurrentUser } from "@/app/messages/actions";
 import { signOut } from "@/app/login/actions";
 import { createClient } from "@/lib/supabase/server";
 
@@ -8,6 +9,9 @@ export async function Navbar() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  const unreadMessageCount = user
+    ? await fetchUnreadMessageCountForCurrentUser()
+    : 0;
 
   return (
     <header className="border-b border-zinc-200 dark:border-zinc-800">
@@ -36,6 +40,15 @@ export async function Navbar() {
                 className="text-zinc-600 transition-colors hover:text-foreground dark:text-zinc-400"
               >
                 My Matches
+              </Link>
+              <Link
+                href="/messages"
+                className="text-zinc-600 transition-colors hover:text-foreground dark:text-zinc-400"
+              >
+                Messages
+                {unreadMessageCount > 0
+                  ? ` (${unreadMessageCount})`
+                  : ""}
               </Link>
               <Link
                 href="/my-collection"
