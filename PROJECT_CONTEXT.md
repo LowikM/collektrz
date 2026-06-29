@@ -15,6 +15,14 @@ Web app for Pokémon collectors to browse in-person trading events and post list
 
 ## Current Supabase schema
 
+### `public.users`
+| Column | Type |
+|---|---|
+| `id` | uuid |
+| `email`, `display_name` | text |
+| `bio`, `location`, `favorite_pokemon`, `avatar_url` | text (optional) |
+| `created_at` | timestamptz |
+
 ### `public.events`
 | Column | Type |
 |---|---|
@@ -37,6 +45,17 @@ Web app for Pokémon collectors to browse in-person trading events and post list
 | `condition`, `set_name`, `notes`, `target_price`, `language` | text (optional) |
 | `tcg_api_card_id`, `card_number`, `set_id` | text (optional; Pokémon TCG API metadata, snapshotted) |
 | `collection_item_id` | uuid → `collection_items.id` (optional) |
+| `created_at`, `updated_at` | timestamptz |
+
+### `public.wishlist_items`
+| Column | Type |
+|---|---|
+| `id` | uuid |
+| `user_id` | uuid → `users.id` |
+| `card_name`, `card_ref` | text (`card_ref` derived from `card_name`) |
+| `set_name`, `language`, `notes` | text (optional) |
+| `tcg_api_card_id`, `card_number`, `set_id` | text (optional; Pokémon TCG API metadata) |
+| `priority` | integer (1–5, default 3) |
 | `created_at`, `updated_at` | timestamptz |
 
 ### `public.collection_items`
@@ -77,7 +96,7 @@ Unique constraint on `(listing_id, user_id)`. Replaces legacy `interests` table.
 
 - Cookie-based Supabase SSR via `lib/supabase/client.ts`, `lib/supabase/server.ts`, `middleware.ts`
 - Middleware calls `getUser()` to refresh sessions and redirect:
-  - unauthenticated `/profile`, `/my-listings`, `/my-interests`, `/my-matches`, `/messages`, `/my-collection` → `/login`
+  - unauthenticated `/profile`, `/my-listings`, `/my-interests`, `/my-matches`, `/messages`, `/my-collection`, `/my-wishlist` → `/login`
   - authenticated `/login` → `/profile`
 - Server actions in `app/login/actions.ts`: `signIn`, `signUp`, `signOut`
 
@@ -101,6 +120,8 @@ Unique constraint on `(listing_id, user_id)`. Replaces legacy `interests` table.
 - **Matching engine (V2):** protected `/my-matches` — user-centric groups by event + other user; want↔offer card sets with priority categories; computed in memory
 - **Contact flow (MVP):** `messages` table; `sendMessage` server action; inline contact forms on matches/listings/interests; protected `/messages` inbox
 - **Message replies + unread:** `replyToMessage`, `markMessageRead`; `read_at` + `parent_message_id`; unread badge in navbar
+- **User profiles (MVP):** optional `bio`, `location`, `favorite_pokemon`, `avatar_url` on `users`; protected `/profile` edit form; public `/users/[id]` profile pages; profile links from listings, matches, interests, and messages
+- **My Wishlist (Phase 1):** `wishlist_items` table; protected `/my-wishlist` CRUD; TCG search + manual entry; priority 1–5; not yet linked to events or want listings
 
 ## Existing routes
 
@@ -108,8 +129,10 @@ Unique constraint on `(listing_id, user_id)`. Replaces legacy `interests` table.
 |---|---|---|
 | `/` | Public | Landing page |
 | `/login` | Public | Auth forms |
-| `/profile` | Protected | User profile |
+| `/profile` | Protected | Edit your profile |
+| `/users/[id]` | Public | Collector public profile |
 | `/my-collection` | Protected | Personal collection CRUD |
+| `/my-wishlist` | Protected | Permanent wanted cards CRUD |
 | `/my-listings` | Protected | Owner listings, interested users, status updates |
 | `/my-interests` | Protected | Listings the user has marked as interested |
 | `/my-matches` | Protected | User-centric trade matches grouped by event + collector |

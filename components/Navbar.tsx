@@ -57,6 +57,12 @@ export async function Navbar() {
                 My Collection
               </Link>
               <Link
+                href="/my-wishlist"
+                className="text-zinc-600 transition-colors hover:text-foreground dark:text-zinc-400"
+              >
+                My Wishlist
+              </Link>
+              <Link
                 href="/profile"
                 className="text-zinc-600 transition-colors hover:text-foreground dark:text-zinc-400"
               >

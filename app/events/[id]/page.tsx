@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { EventListingFilters } from "@/components/EventListingFilters";
 import { ListingInterest } from "@/components/ListingInterest";
 import { MessageStatusAlert } from "@/components/MessageStatusAlert";
+import { UserProfileLink } from "@/components/UserProfileLink";
 import {
   ListingCardThumbnail,
   ListingOfficialCardBadges,
@@ -20,6 +21,12 @@ import { createClient } from "@/lib/supabase/server";
 type EventDetailPageProps = {
   params: Promise<{ id: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
+
+type ListingOwner = {
+  id: string;
+  display_name: string | null;
+  email: string;
 };
 
 type Listing = {
@@ -39,6 +46,7 @@ type Listing = {
   set_id: string | null;
   created_at: string;
   updated_at: string;
+  users: ListingOwner | ListingOwner[] | null;
 };
 
 const TYPE_LABELS: Record<Listing["type"], string> = {
@@ -46,6 +54,14 @@ const TYPE_LABELS: Record<Listing["type"], string> = {
   trade: "Trade",
   sale: "Sale",
 };
+
+function getListingOwner(users: Listing["users"]) {
+  if (!users) {
+    return null;
+  }
+
+  return Array.isArray(users) ? (users[0] ?? null) : users;
+}
 
 function formatEventDate(date: string) {
   return new Date(date).toLocaleDateString(undefined, {
@@ -101,7 +117,7 @@ export default async function EventDetailPage({
   let listingsQuery = supabase
     .from("listings")
     .select(
-      "id, event_id, user_id, type, card_name, trade_for, status, condition, set_name, notes, language, tcg_api_card_id, card_number, set_id, created_at, updated_at",
+      "id, event_id, user_id, type, card_name, trade_for, status, condition, set_name, notes, language, tcg_api_card_id, card_number, set_id, created_at, updated_at, users(id, display_name, email)",
     )
     .eq("event_id", id)
     .eq("status", "active");
@@ -242,6 +258,7 @@ export default async function EventDetailPage({
                 const imageUrl = listing.tcg_api_card_id
                   ? (cardImagesById.get(listing.tcg_api_card_id)?.small ?? null)
                   : null;
+                const owner = getListingOwner(listing.users);
 
                 return (
                   <li key={listing.id}>
@@ -266,6 +283,21 @@ export default async function EventDetailPage({
                           </div>
 
                           <dl className="mt-3 space-y-2 text-sm">
+                            <div>
+                              <dt className="font-medium text-zinc-500 dark:text-zinc-400">
+                                Listed by
+                              </dt>
+                              <dd>
+                                {owner ? (
+                                  <UserProfileLink
+                                    userId={listing.user_id}
+                                    user={owner}
+                                  />
+                                ) : (
+                                  "Unknown user"
+                                )}
+                              </dd>
+                            </div>
                             {listing.set_name ? (
                               <div>
                                 <dt className="font-medium text-zinc-500 dark:text-zinc-400">

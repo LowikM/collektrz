@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 
 import { MessageStatusAlert } from "@/components/MessageStatusAlert";
 import { ReplyMessageForm } from "@/components/ReplyMessageForm";
+import { UserProfileLink } from "@/components/UserProfileLink";
 import { markAllReceivedMessagesRead } from "@/lib/messages";
 import { createClient } from "@/lib/supabase/server";
 
@@ -21,6 +22,8 @@ type MessageRow = {
   read_at: string | null;
   listing_id: string | null;
   parent_message_id: string | null;
+  sender_id: string;
+  recipient_id: string;
   sender: EmbeddedUser | EmbeddedUser[] | null;
   recipient: EmbeddedUser | EmbeddedUser[] | null;
   listings: EmbeddedListing | EmbeddedListing[] | null;
@@ -44,14 +47,6 @@ function getListingName(listings: MessageRow["listings"]) {
 
   const listing = Array.isArray(listings) ? listings[0] : listings;
   return listing?.card_name ?? null;
-}
-
-function getUserLabel(user: EmbeddedUser | null) {
-  if (!user) {
-    return "Unknown user";
-  }
-
-  return user.display_name?.trim() || user.email;
 }
 
 function formatDateTime(date: string) {
@@ -92,7 +87,13 @@ function ReceivedMessageItem({ message }: { message: MessageRow }) {
             <dt className="font-medium text-zinc-500 dark:text-zinc-400">
               From
             </dt>
-            <dd>{getUserLabel(sender)}</dd>
+            <dd>
+              {sender ? (
+                <UserProfileLink userId={message.sender_id} user={sender} />
+              ) : (
+                "Unknown user"
+              )}
+            </dd>
           </div>
           {listingName ? (
             <div>
@@ -140,7 +141,16 @@ function SentMessageItem({ message }: { message: MessageRow }) {
         <dl className="space-y-2 text-sm">
           <div>
             <dt className="font-medium text-zinc-500 dark:text-zinc-400">To</dt>
-            <dd>{getUserLabel(recipient)}</dd>
+            <dd>
+              {recipient ? (
+                <UserProfileLink
+                  userId={message.recipient_id}
+                  user={recipient}
+                />
+              ) : (
+                "Unknown user"
+              )}
+            </dd>
           </div>
           {listingName ? (
             <div>
@@ -190,6 +200,8 @@ export default async function MessagesPage({
     read_at,
     listing_id,
     parent_message_id,
+    sender_id,
+    recipient_id,
     sender:users!messages_sender_id_fkey(display_name, email),
     recipient:users!messages_recipient_id_fkey(display_name, email),
     listings(card_name)

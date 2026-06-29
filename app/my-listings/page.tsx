@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { updateListingStatus } from "@/app/my-listings/actions";
+import { UserProfileLink } from "@/components/UserProfileLink";
 import {
   ListingCardThumbnail,
   ListingOfficialCardBadges,
@@ -14,7 +15,11 @@ type ListingType = "want" | "trade" | "sale";
 type ListingStatus = "active" | "reserved" | "completed" | "removed";
 
 type EmbeddedEvent = { name: string };
-type EmbeddedUser = { display_name: string | null; email: string };
+type EmbeddedUser = {
+  id: string;
+  display_name: string | null;
+  email: string;
+};
 type EmbeddedInterest = {
   id: string;
   created_at: string;
@@ -104,7 +109,7 @@ export default async function MyListingsPage({
       listing_interests(
         id,
         created_at,
-        users(display_name, email)
+        users(id, display_name, email)
       )
     `,
     )
@@ -280,7 +285,14 @@ export default async function MyListingsPage({
                                 className="rounded-lg bg-zinc-50 px-3 py-2 text-sm dark:bg-zinc-900"
                               >
                                 <p className="font-medium">
-                                  {interestedUser?.display_name ?? "Unknown user"}
+                                  {interestedUser ? (
+                                    <UserProfileLink
+                                      userId={interestedUser.id}
+                                      user={interestedUser}
+                                    />
+                                  ) : (
+                                    "Unknown user"
+                                  )}
                                 </p>
                                 <p className="text-zinc-600 dark:text-zinc-400">
                                   {interestedUser?.email ?? "No email"}

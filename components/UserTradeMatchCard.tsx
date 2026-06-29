@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { SendMessageForm } from "@/components/SendMessageForm";
+import { UserProfileLink } from "@/components/UserProfileLink";
 import {
   ListingCardThumbnail,
   ListingOfficialCardBadges,
@@ -28,14 +29,6 @@ const TYPE_LABELS = {
 
 const badgeClassName =
   "rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-700 dark:bg-zinc-900 dark:text-zinc-300";
-
-function getOtherUserLabel(user: MatchUser | null) {
-  if (!user) {
-    return "Unknown user";
-  }
-
-  return user.display_name?.trim() || user.email;
-}
 
 function MatchedCardRow({
   card,
@@ -145,7 +138,16 @@ export function UserTradeMatchCard({
             <dt className="font-medium text-zinc-500 dark:text-zinc-400">
               Other user
             </dt>
-            <dd>{getOtherUserLabel(match.otherUser)}</dd>
+            <dd>
+              {match.otherUser ? (
+                <UserProfileLink
+                  userId={match.otherUserId}
+                  user={match.otherUser}
+                />
+              ) : (
+                "Unknown user"
+              )}
+            </dd>
           </div>
         </dl>
 
