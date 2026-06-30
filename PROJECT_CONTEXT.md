@@ -131,6 +131,7 @@ Unique constraint on `(listing_id, user_id)`. Replaces legacy `interests` table.
 - **Set Browser (Phase 2 — bulk):** checkbox selection, range picker, sticky bulk toolbar; `bulkAddCardsToCollection` / `bulkAddCardsToWishlist` in `app/sets/actions.ts`; batch insert with duplicate skip; summary banner after redirect
 - **Set Browser (Phase 3 — completion & filters):** completion stats + progress bar; client-side All/Owned/Wanted/Missing filters; “Add all missing to Wishlist” quick action via existing bulk wishlist action
 - **Set Browser (Phase 4 — binder mode):** Grid/Binder toggle (localStorage); 9-card binder pages with page navigation + overview sidebar/drawer; status-based borders on binder cards
+- **Set Browser (UX polish):** clearer status badges, stronger selection states, improved binder filter slots, mobile-friendly bulk toolbar, loading skeletons, richer empty states
 - **Collection Dashboard (Home):** logged-in `/` shows collector dashboard with collection/trading/event stats, continue collecting sets, top wishlist cards, quick actions; guests see landing page
 
 ## Existing routes

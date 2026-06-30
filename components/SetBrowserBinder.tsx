@@ -45,21 +45,30 @@ function PageOverviewList({
             <button
               type="button"
               onClick={() => onPageChange(summary.page)}
-              className={`w-full rounded-lg border px-3 py-2 text-left text-sm transition-colors ${
+              className={`w-full rounded-lg border px-3 py-2.5 text-left text-sm transition-colors ${
                 isActive
-                  ? "border-foreground bg-zinc-50 dark:bg-zinc-900"
+                  ? "border-foreground bg-zinc-100 dark:bg-zinc-900"
                   : "border-zinc-200 hover:border-zinc-400 dark:border-zinc-800 dark:hover:border-zinc-600"
               }`}
             >
               <div className="flex items-center justify-between gap-2">
                 <span className="font-medium">Page {summary.page}</span>
-                <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                <span className="text-xs font-semibold tabular-nums text-zinc-500 dark:text-zinc-400">
                   {summary.completionPercent}%
                 </span>
               </div>
               <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
                 {summary.owned} / {summary.total} owned
               </p>
+              <div
+                className="mt-2 h-1 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800"
+                aria-hidden="true"
+              >
+                <div
+                  className="h-full rounded-full bg-green-500 dark:bg-green-400"
+                  style={{ width: `${summary.completionPercent}%` }}
+                />
+              </div>
             </button>
           </li>
         );
@@ -169,15 +178,15 @@ export function SetBrowserBinder({
         </div>
 
         {statusFilter !== "all" ? (
-          <p className="text-xs text-zinc-500 dark:text-zinc-400">
+          <p className="rounded-lg border border-blue-200 bg-blue-50/70 px-3 py-2 text-xs text-blue-900 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-200">
             Binder pages always show the full set. Cards that do not match the
             current filter appear as empty slots.
           </p>
         ) : null}
 
-        <ul className="grid grid-cols-2 gap-4 md:grid-cols-3">
+        <ul className="grid grid-cols-2 gap-5 md:grid-cols-3 md:gap-6">
           {pageCards.map((card) => (
-            <li key={card.id}>
+            <li key={card.id} className="min-h-[320px]">
               <SetBrowserCard
                 card={card}
                 setId={setId}

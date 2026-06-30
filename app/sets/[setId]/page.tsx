@@ -231,9 +231,15 @@ export default async function SetDetailPage({
         ) : null}
 
         {set && cards && cards.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-zinc-300 px-6 py-12 text-center text-sm text-zinc-600 dark:border-zinc-700 dark:text-zinc-400">
-            No cards found for this set.
-          </p>
+          <div className="rounded-xl border border-dashed border-zinc-300 bg-zinc-50/50 px-6 py-14 text-center dark:border-zinc-700 dark:bg-zinc-900/20">
+            <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              No cards found for this set
+            </p>
+            <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+              The Pokémon TCG API returned an empty card list. Try again later or
+              pick a different set.
+            </p>
+          </div>
         ) : null}
 
         {set && cards && cards.length > 0 ? (

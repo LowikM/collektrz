@@ -22,7 +22,8 @@ Read `PROJECT_CONTEXT.md` first. Use the **actual Supabase schema** below — do
 - **Set Browser (Phase 2 — bulk):** checkbox selection + highlighted borders; Select all / Clear all / numeric range picker; sticky bulk toolbar; `bulkAddCardsToCollection` / `bulkAddCardsToWishlist`
 - **Set Browser (Phase 3 — completion & filters):** `SetCompletionStatsPanel`; All/Owned/Wanted/Missing filters; “Add all missing to Wishlist” quick action
 - **Set Browser (Phase 4 — binder mode):** Grid/Binder toggle; `SetBrowserBinder`; binder pagination helpers in `lib/set-browser.ts`
-- **Collection Dashboard (Home):** logged-in `/` via `loadCollectorDashboard` in `lib/dashboard.ts`; `CollectorDashboard` component; recent set cookie on `/sets/[setId]` visits
+- **Set Browser (UX polish):** status badge dots, selection highlight, binder hidden slots, scrollable mobile bulk toolbar, `app/sets/loading.tsx` + `app/sets/[setId]/loading.tsx`, empty-state copy on `/sets` and set detail
+- **Collection Dashboard (Home):** logged-in `/` via `loadCollectorDashboard` in `lib/dashboard.ts`; `CollectorDashboard` component; recent set cookie via POST `/api/sets/[setId]/recent` after set page load
 - **Listing from collection:** searchable picker prefills form; snapshot on insert + optional `collection_item_id`
 - **Language:** optional dropdown on collection + listings (13 values); snapshotted when creating listings
 - **Pokémon TCG API (Phase A):** `lib/pokemon-tcg.ts`, `GET /api/card-search?q=...` (auth required); optional `POKEMON_TCG_API_KEY`; DB columns `tcg_api_card_id`, `card_number`, `set_id`; no images stored in DB
@@ -183,6 +184,37 @@ Grid/Binder toggle on `/sets/[setId]` (localStorage key `pet-set-browser-view`, 
 
 **Future improvements:** drag-and-drop reorder, custom binder sizes, Projects integration, page-turn animations, print layout.
 
+## Set Browser UX polish (done)
+
+Visual-only improvements on `/sets` and `/sets/[setId]`. No behavior, schema, or API changes.
+
+**Improvements:**
+
+- **Status badges** — colored dot + bordered pill for Owned / Wanted / Owned + Wanted / Missing (amber for missing); aligned with completion stats panel
+- **Selection** — blue tint, stronger ring, shadow, and accent checkbox on selected cards (grid + binder)
+- **Card layout** — more padding, wider gaps, monospace collector numbers, action button divider, subtle card shadows
+- **Binder filter slots** — funnel icon, clearer “Hidden by filter” copy, consistent slot height, blue info callout when a filter is active
+- **Binder page overview** — mini progress bar per page in sidebar/drawer
+- **Bulk toolbar (mobile)** — pinned header with count + Clear; scrollable defaults; full-width action buttons; safe-area inset; stronger backdrop
+- **Loading** — `app/sets/loading.tsx` and `app/sets/[setId]/loading.tsx` skeleton screens
+- **Empty states** — search prompt on `/sets`, richer no-results copy, filter-empty grid message, empty set card list message
+
+**Files changed:**
+
+| Area | Files |
+|---|---|
+| Components | `components/SetBrowserCard.tsx`, `components/SetBrowserGrid.tsx`, `components/SetBrowserBinder.tsx`, `components/SetCompletionStatsPanel.tsx` |
+| Pages | `app/sets/page.tsx`, `app/sets/[setId]/page.tsx` |
+| Loading | `app/sets/loading.tsx`, `app/sets/[setId]/loading.tsx` |
+
+**How to test:**
+
+1. Open a set — confirm badge colors, card spacing, and selection highlight when checking cards.
+2. Switch to Binder with a filter active — hidden slots show funnel + helper text; info callout appears above grid.
+3. Select several cards on mobile — bulk toolbar header stays readable; scroll defaults; tap full-width bulk buttons.
+4. Navigate to `/sets` before searching — empty prompt appears; search with no matches — helpful no-results copy.
+5. Slow network or hard refresh on set detail — loading skeleton appears before content.
+
 ## Collection Dashboard (Home) (done)
 
 Logged-in users see a collector dashboard at `/`. Guests still see the marketing landing page.
@@ -284,6 +316,7 @@ Recent sets: cookie `pet_recent_sets` updated on `/sets/[setId]` visit; fallback
 | Set Browser (Phase 2 — bulk) | Done |
 | Set Browser (Phase 3 — completion & filters) | Done |
 | Set Browser (Phase 4 — binder mode) | Done |
+| Set Browser (UX polish) | Done |
 | Collection Dashboard (Home) | Done |
 | Join event | Not started |
 
@@ -304,8 +337,8 @@ Blockers for remaining items: binder layout, collection unique index for officia
 - Run `npm run dev` (Turbopack). Env in `.env.local`.
 - Optional server env: `POKEMON_TCG_API_KEY` (Pokémon TCG Developer Portal; higher rate limits than unauthenticated).
 - Card search: `GET /api/card-search?q=char` while logged in → `{ results: [...] }` with `images.small` for display only (not stored in DB). Future images: `getCardById` / `getCardImagesById` in `lib/pokemon-tcg.ts`.
-- Dashboard: logged-in `/` uses `loadCollectorDashboard` in `lib/dashboard.ts`; recent sets cookie `pet_recent_sets` on set page visits
-- Set browser: `/sets/[setId]` — Grid/Binder toggle (`pet-set-browser-view` localStorage); binder pagination via `computeBinderPageSummaries` in `lib/set-browser.ts`; completion stats, filters, bulk actions unchanged
+- Dashboard: logged-in `/` uses `loadCollectorDashboard` in `lib/dashboard.ts`; recent sets cookie `pet_recent_sets` via POST `/api/sets/[setId]/recent` on set page load
+- Set browser: `/sets/[setId]` — Grid/Binder toggle (`pet-set-browser-view` localStorage); binder pagination via `computeBinderPageSummaries` in `lib/set-browser.ts`; completion stats, filters, bulk actions unchanged; loading skeletons at `app/sets/loading.tsx` and `app/sets/[setId]/loading.tsx`
 - Create listing: `/events/[id]/new-listing` accepts **sale/trade only**; `createListing` rejects `type=want`; want listings via `activateWishlistForEvent`; legacy want rows kept
 - Listing interests: `addInterest(listingId)` / `removeInterest(listingId)` in `app/listing-interests/actions.ts`; table `listing_interests`.
 - Messages: `sendMessage`, `replyToMessage`, `markMessageRead` in `app/messages/actions.ts`; max body 1000 chars; inbox at `/messages`; unread = `read_at IS NULL`

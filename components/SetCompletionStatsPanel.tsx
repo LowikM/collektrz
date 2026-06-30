@@ -6,9 +6,11 @@ type SetCompletionStatsProps = {
 
 export function SetCompletionStatsPanel({ stats }: SetCompletionStatsProps) {
   return (
-    <section className="space-y-4 rounded-xl border border-zinc-200 p-4 dark:border-zinc-800">
+    <section className="space-y-4 rounded-xl border border-zinc-200 bg-zinc-50/50 p-4 dark:border-zinc-800 dark:bg-zinc-900/20">
       <div>
-        <h2 className="text-sm font-medium">Set completion</h2>
+        <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+          Set completion
+        </h2>
         <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
           Based on cards loaded for this set and your official collection and
           wishlist entries.
@@ -32,9 +34,13 @@ export function SetCompletionStatsPanel({ stats }: SetCompletionStatsProps) {
             {stats.wanted}
           </dd>
         </div>
-        <div className="rounded-lg bg-zinc-100 px-3 py-2 dark:bg-zinc-900">
-          <dt className="text-xs text-zinc-500 dark:text-zinc-400">Missing</dt>
-          <dd className="text-lg font-semibold">{stats.missing}</dd>
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-900 dark:bg-amber-950/40">
+          <dt className="text-xs font-medium text-amber-800 dark:text-amber-300">
+            Missing
+          </dt>
+          <dd className="text-lg font-semibold text-amber-900 dark:text-amber-200">
+            {stats.missing}
+          </dd>
         </div>
       </dl>
 

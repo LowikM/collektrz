@@ -91,6 +91,18 @@ export default async function SetsPage({
           </p>
         ) : null}
 
+        {query.length === 0 && !searchError ? (
+          <div className="rounded-xl border border-dashed border-zinc-300 bg-zinc-50/50 px-6 py-14 text-center dark:border-zinc-700 dark:bg-zinc-900/20">
+            <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              Search for a set to get started
+            </p>
+            <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+              Try Brilliant Stars, Obsidian Flames, or a set ID like{" "}
+              <span className="font-mono">swsh9</span>.
+            </p>
+          </div>
+        ) : null}
+
         {query.length > 0 && query.length < MIN_QUERY_LENGTH ? (
           <p className="text-sm text-zinc-600 dark:text-zinc-400">
             Type at least {MIN_QUERY_LENGTH} characters to search.
@@ -104,9 +116,14 @@ export default async function SetsPage({
             </h2>
 
             {results.length === 0 ? (
-              <p className="rounded-xl border border-dashed border-zinc-300 px-6 py-12 text-center text-sm text-zinc-600 dark:border-zinc-700 dark:text-zinc-400">
-                No sets found.
-              </p>
+              <div className="rounded-xl border border-dashed border-zinc-300 bg-zinc-50/50 px-6 py-14 text-center dark:border-zinc-700 dark:bg-zinc-900/20">
+                <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                  No sets found
+                </p>
+                <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+                  Check the spelling or try a set ID instead of the full name.
+                </p>
+              </div>
             ) : (
               <ul className="grid gap-4">
                 {results.map((set) => (

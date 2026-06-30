@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import {
   bulkAddCardsToCollection,
@@ -64,6 +64,8 @@ export function SetBrowserGrid({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [statusFilter, setStatusFilter] = useState<SetCardFilter>("all");
   const [viewMode, setViewMode] = useState<SetBrowserViewMode>("grid");
+  const viewModeHydratedRef = useRef(false);
+  const viewModeTouchedRef = useRef(false);
   const [binderPage, setBinderPage] = useState(1);
   const [pagesDrawerOpen, setPagesDrawerOpen] = useState(false);
   const [rangeFrom, setRangeFrom] = useState("");
@@ -101,21 +103,38 @@ export function SetBrowserGrid({
   const returnPath = `/sets/${setId}`;
   const selectedIdList = [...selectedIds];
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    if (viewModeTouchedRef.current) {
+      viewModeHydratedRef.current = true;
+      return;
+    }
+
     const stored = window.localStorage.getItem(SET_BROWSER_VIEW_STORAGE_KEY);
 
     if (stored === "grid" || stored === "binder") {
       setViewMode(stored);
     }
+
+    viewModeHydratedRef.current = true;
   }, []);
 
   useEffect(() => {
+    if (!viewModeHydratedRef.current) {
+      return;
+    }
+
     window.localStorage.setItem(SET_BROWSER_VIEW_STORAGE_KEY, viewMode);
   }, [viewMode]);
 
   useEffect(() => {
     setBinderPage((current) => clampBinderPage(current, binderPageCount));
   }, [binderPageCount]);
+
+  function updateViewMode(mode: SetBrowserViewMode) {
+    viewModeTouchedRef.current = true;
+    viewModeHydratedRef.current = true;
+    setViewMode(mode);
+  }
 
   function toggleCard(cardId: string, checked: boolean) {
     setSelectedIds((current) => {
@@ -166,10 +185,12 @@ export function SetBrowserGrid({
 
   return (
     <>
-      <section className="space-y-4 rounded-xl border border-zinc-200 p-4 dark:border-zinc-800">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <section className="space-y-4 rounded-xl border border-zinc-200 bg-zinc-50/50 p-4 dark:border-zinc-800 dark:bg-zinc-900/20">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-2">
-            <p className="text-sm font-medium">Filter cards</p>
+            <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+              Filter cards
+            </p>
             <div className="flex flex-wrap gap-2">
               {SET_CARD_FILTERS.map((filter) => {
                 const isActive = statusFilter === filter.value;
@@ -192,13 +213,19 @@ export function SetBrowserGrid({
             </div>
           </div>
 
-          <div className="space-y-2">
-            <p className="text-sm font-medium">View</p>
-            <div className="flex flex-wrap gap-2">
+          <div className="relative z-10 space-y-2">
+            <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+              View
+            </p>
+            <div
+              className="flex flex-wrap gap-2"
+              role="group"
+              aria-label="Set browser view"
+            >
               <button
                 type="button"
-                onClick={() => setViewMode("grid")}
-                className={`${viewToggleClassName} ${
+                onClick={() => updateViewMode("grid")}
+                className={`${viewToggleClassName} min-h-11 touch-manipulation ${
                   viewMode === "grid"
                     ? "border-foreground bg-foreground text-background"
                     : "border-zinc-300 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
@@ -208,8 +235,8 @@ export function SetBrowserGrid({
               </button>
               <button
                 type="button"
-                onClick={() => setViewMode("binder")}
-                className={`${viewToggleClassName} ${
+                onClick={() => updateViewMode("binder")}
+                className={`${viewToggleClassName} min-h-11 touch-manipulation ${
                   viewMode === "binder"
                     ? "border-foreground bg-foreground text-background"
                     : "border-zinc-300 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
@@ -288,7 +315,7 @@ export function SetBrowserGrid({
         </form>
       </section>
 
-      <section className="space-y-4 rounded-xl border border-zinc-200 p-4 dark:border-zinc-800">
+      <section className="space-y-4 rounded-xl border border-zinc-200 bg-zinc-50/50 p-4 dark:border-zinc-800 dark:bg-zinc-900/20">
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
@@ -360,13 +387,19 @@ export function SetBrowserGrid({
       </section>
 
       {viewMode === "grid" && filteredCards.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-zinc-300 px-6 py-12 text-center text-sm text-zinc-600 dark:border-zinc-700 dark:text-zinc-400">
-          No cards match this filter.
-        </p>
+        <div className="rounded-xl border border-dashed border-zinc-300 bg-zinc-50/50 px-6 py-14 text-center dark:border-zinc-700 dark:bg-zinc-900/20">
+          <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+            No cards match this filter
+          </p>
+          <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+            Try switching to All, or pick a different Owned / Wanted / Missing
+            filter.
+          </p>
+        </div>
       ) : null}
 
       {viewMode === "grid" && filteredCards.length > 0 ? (
-        <ul className="grid grid-cols-2 gap-4 pb-28 md:grid-cols-3 lg:grid-cols-4">
+        <ul className="grid grid-cols-2 gap-5 pb-32 sm:gap-6 md:grid-cols-3 lg:grid-cols-4">
           {filteredCards.map((card) => (
             <li key={card.id}>
               <SetBrowserCard
@@ -385,7 +418,7 @@ export function SetBrowserGrid({
       ) : null}
 
       {viewMode === "binder" ? (
-        <div className="pb-28">
+        <div className="pb-32">
           <SetBrowserBinder
             setId={setId}
             ownedIds={ownedSet}
@@ -405,13 +438,23 @@ export function SetBrowserGrid({
       ) : null}
 
       {selectedCount > 0 ? (
-        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-zinc-200 bg-white/95 px-4 py-4 shadow-lg backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/95">
-          <div className="mx-auto flex w-full max-w-6xl flex-col gap-4">
-            <p className="text-sm font-medium">
-              {selectedCount} card{selectedCount === 1 ? "" : "s"} selected
-            </p>
+        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-zinc-300 bg-white/98 shadow-[0_-8px_30px_rgba(0,0,0,0.12)] backdrop-blur-md dark:border-zinc-700 dark:bg-zinc-950/98 dark:shadow-[0_-8px_30px_rgba(0,0,0,0.45)]">
+          <div className="mx-auto w-full max-w-6xl">
+            <div className="flex items-center justify-between gap-3 border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
+              <p className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
+                {selectedCount} card{selectedCount === 1 ? "" : "s"} selected
+              </p>
+              <button
+                type="button"
+                onClick={clearSelection}
+                className={`${toolbarButtonClassName} shrink-0`}
+              >
+                Clear
+              </button>
+            </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="max-h-[min(58vh,26rem)] overflow-y-auto px-4 py-4">
+              <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-3 rounded-xl border border-zinc-200 p-3 dark:border-zinc-800">
                 <p className="text-sm font-medium">Collection defaults</p>
                 <div className="grid gap-3 sm:grid-cols-3">
@@ -518,10 +561,10 @@ export function SetBrowserGrid({
                   </div>
                 </div>
               </div>
-            </div>
+              </div>
 
-            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-              <form action={bulkAddCardsToCollection} className="flex">
+              <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+              <form action={bulkAddCardsToCollection} className="flex sm:flex-1">
                 <input type="hidden" name="return_path" value={returnPath} />
                 <input type="hidden" name="set_id" value={setId} />
                 <input type="hidden" name="language" value={collectionLanguage} />
@@ -543,12 +586,15 @@ export function SetBrowserGrid({
                     value={cardId}
                   />
                 ))}
-                <button type="submit" className={primaryButtonClassName}>
+                <button
+                  type="submit"
+                  className={`${primaryButtonClassName} w-full sm:w-auto`}
+                >
                   Add selected to Collection
                 </button>
               </form>
 
-              <form action={bulkAddCardsToWishlist} className="flex">
+              <form action={bulkAddCardsToWishlist} className="flex sm:flex-1">
                 <input type="hidden" name="return_path" value={returnPath} />
                 <input type="hidden" name="set_id" value={setId} />
                 <input type="hidden" name="language" value={wishlistLanguage} />
@@ -561,7 +607,10 @@ export function SetBrowserGrid({
                     value={cardId}
                   />
                 ))}
-                <button type="submit" className={primaryButtonClassName}>
+                <button
+                  type="submit"
+                  className={`${primaryButtonClassName} w-full sm:w-auto`}
+                >
                   Add selected to Wishlist
                 </button>
               </form>
@@ -569,11 +618,14 @@ export function SetBrowserGrid({
               <button
                 type="button"
                 onClick={clearSelection}
-                className={toolbarButtonClassName}
+                className={`${toolbarButtonClassName} hidden sm:inline-flex`}
               >
                 Clear selection
               </button>
+              </div>
             </div>
+
+            <div className="h-[max(0px,env(safe-area-inset-bottom))]" />
           </div>
         </div>
       ) : null}
