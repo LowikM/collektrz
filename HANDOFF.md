@@ -1,4 +1,4 @@
-# Handoff — Pokémon Event Trade
+# Handoff — Collektrz
 
 ## Start here
 

@@ -1,36 +1,69 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Collektrz
 
-## Getting Started
+**Collect. Connect. Trade.**
 
-First, run the development server:
+Collektrz is a modern marketplace and community for collectors. Browse in-person trading events, manage your collection and wishlist, post listings, find trade matches, and connect with other collectors — whether you collect Pokémon, Yu-Gi-Oh!, Magic, sports cards, comics, LEGO, or anything else.
+
+## Tech stack
+
+- **Next.js 16** (App Router)
+- **React 19**, **TypeScript**
+- **Tailwind CSS v4**
+- **Supabase** — Postgres, Auth, RLS
+
+## Getting started
+
+1. Copy environment variables:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cp .env.example .env.local
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. Set required values in `.env.local`:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `POKEMON_TCG_API_KEY` (optional — improves Pokémon TCG API rate limits for Set Browser and card search)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+3. Apply Supabase migrations (see `RELEASE_CHECKLIST.md` and `supabase/migrations/`).
 
-## Learn More
+4. Run the development server:
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+npm install
+npm run dev
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Scripts
 
-## Deploy on Vercel
+| Command | Description |
+|---|---|
+| `npm run dev` | Start dev server (Turbopack) |
+| `npm run build` | Production build |
+| `npm run start` | Start production server |
+| `npm run lint` | Run ESLint |
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Key routes
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+| Route | Access |
+|---|---|
+| `/` | Landing (guest) or collector dashboard (signed in) |
+| `/events` | Public event list |
+| `/events/[id]` | Public event detail + listings |
+| `/login` | Sign in / sign up |
+| `/my-collection`, `/my-wishlist`, `/sets` | Protected collector tools |
+| `/my-listings`, `/my-matches`, `/messages` | Protected trading tools |
+
+See `PROJECT_CONTEXT.md` for full route and schema documentation.
+
+## Deploy
+
+Deploy to Vercel with the env vars listed in `.env.example`. See `RELEASE_CHECKLIST.md` for pre-release steps.
+
+## Documentation
+
+- `PROJECT_CONTEXT.md` — architecture, schema, features
+- `HANDOFF.md` — developer handoff notes
+- `RELEASE_CHECKLIST.md` — deployment checklist

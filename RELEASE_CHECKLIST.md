@@ -1,4 +1,4 @@
-# Release Checklist — Pokémon Event Trade
+# Release Checklist — Collektrz
 
 Pre-release audit for first Vercel deployment / external test. Last audited: build passes (`npm run build`), TypeScript clean, no blocking runtime errors known.
 

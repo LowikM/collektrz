@@ -17,7 +17,7 @@ export default async function EventsPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Events</h1>
           <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-            Browse upcoming Pokémon trading events.
+            Browse upcoming collector trading events.
           </p>
         </div>
 

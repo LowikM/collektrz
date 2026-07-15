@@ -15,9 +15,27 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const siteDescription =
+  "The modern marketplace and community where collectors connect, trade and discover collectibles.";
+
 export const metadata: Metadata = {
-  title: "Pokémon Event Trade",
-  description: "Trade event Pokémon with other collectors",
+  title: {
+    default: "Collektrz",
+    template: "%s | Collektrz",
+  },
+  description: siteDescription,
+  applicationName: "Collektrz",
+  openGraph: {
+    title: "Collektrz",
+    description: siteDescription,
+    siteName: "Collektrz",
+    type: "website",
+  },
+  twitter: {
+    card: "summary",
+    title: "Collektrz",
+    description: siteDescription,
+  },
 };
 
 export default function RootLayout({

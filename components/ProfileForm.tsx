@@ -71,7 +71,7 @@ export function ProfileForm({ profile }: ProfileFormProps) {
 
       <div className="space-y-2">
         <label htmlFor="favorite_pokemon" className="text-sm font-medium">
-          Favorite Pokémon
+          Favorite collectible
         </label>
         <input
           id="favorite_pokemon"

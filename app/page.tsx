@@ -11,26 +11,30 @@ function LandingPage() {
       <main className="flex w-full max-w-2xl flex-col justify-center gap-10">
         <div className="space-y-4">
           <p className="text-sm font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-            Pokémon Event Trade
+            Collektrz
           </p>
           <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-            Trade at Pokémon events with less guesswork
+            Collect. Connect. Trade.
           </h1>
           <p className="text-base leading-7 text-zinc-600 dark:text-zinc-400">
-            Browse events, post what you want to sell or trade, and see who is
-            interested before and during the event.
+            The modern marketplace and community where collectors connect,
+            trade, and discover collectibles — from Pokémon and Yu-Gi-Oh! to
+            sports cards, comics, LEGO, Funko, and everything in between.
           </p>
         </div>
 
         <ul className="space-y-4 text-sm leading-6 text-zinc-700 dark:text-zinc-300">
           <li className="flex gap-3">
             <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-foreground" />
-            Browse Pokémon events
+            Discover collector events and meetups near you
           </li>
           <li className="flex gap-3">
             <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-foreground" />
-            Create listings for cards or sealed products you want to sell, trade,
-            or find
+            Manage your collection and wishlist in one place
+          </li>
+          <li className="flex gap-3">
+            <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-foreground" />
+            Post listings for items you want to sell, trade, or find
           </li>
           <li className="flex gap-3">
             <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-foreground" />

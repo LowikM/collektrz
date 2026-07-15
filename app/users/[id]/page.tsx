@@ -106,7 +106,7 @@ export default async function PublicUserProfilePage({
             {userProfile.favorite_pokemon ? (
               <div>
                 <dt className="font-medium text-zinc-500 dark:text-zinc-400">
-                  Favorite Pokémon
+                  Favorite collectible
                 </dt>
                 <dd className="mt-1">{userProfile.favorite_pokemon}</dd>
               </div>

@@ -17,7 +17,7 @@ export async function Navbar() {
     <header className="border-b border-zinc-200 dark:border-zinc-800">
       <nav className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-4">
         <Link href="/" className="shrink-0 text-sm font-semibold tracking-tight">
-          Pokémon Event Trade
+          Collektrz
         </Link>
 
         <div className="flex max-w-[min(100%,70vw)] items-center gap-4 overflow-x-auto text-sm sm:max-w-none">

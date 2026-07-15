@@ -1,8 +1,8 @@
-# Pokémon Event Trade — Project Context
+# Collektrz — Project Context
 
 ## Project goal
 
-Web app for Pokémon collectors to browse in-person trading events and post listings of cards they want to trade at each event.
+Web app for collectors to browse in-person trading events, manage collections and wishlists, and post listings of items they want to trade or sell at each event. Pokémon TCG features (Set Browser, official card search) are supported alongside generic collector workflows.
 
 ## Tech stack
 
