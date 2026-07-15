@@ -33,7 +33,7 @@ Read `PROJECT_CONTEXT.md` first. Use the **actual Supabase schema** below — do
 - **Pokémon TCG API (Phase D):** collection API fields snapshotted on listing create; thumbnails + badges on event + My Listings pages via `getCardImagesByIds`
 - **Event listing search & filters:** `/events/[id]` GET form → URL params; Supabase query filtering in `lib/listing-filters.ts` + `EventListingFilters`
 - **Matching engine (V2):** `/my-matches` — `findUserTradeMatches()` in `lib/listing-matches.ts`; grouped by event + user; perfect/strong/direct/reverse categories; no DB table
-- **UI:** `Navbar`, `EventCard`, `ListingInterest`, `NewListingForm`, `LanguageSelect`, `CardSearchCombobox`, `AddCollectionItemForm`, `EditCollectionItemForm`, `CollectionItemSealedFields`, `AddWishlistItemForm`, `PrioritySelect`, `ActivateWishlistForm`, `WishlistManageList`, `EventListingFilters`, `ListingOfficialCard`, `UserTradeMatchCard`, `SendMessageForm`, `ReplyMessageForm`, `MessageStatusAlert`, `ProfileForm`, `UserProfileLink`, `SetBrowserCard`, `SetBrowserGrid`, `SetCompletionStatsPanel`, `SetBrowserBinder`, `CollectorDashboard`
+- **UI:** `Navbar`, `EventCard`, `EventHero`, `EventPersonalDashboard`, `EventPresenceControls`, `VendorBadge`, `ProfileQrCode`, `ListingInterest`, `NewListingForm`, `LanguageSelect`, `CardSearchCombobox`, `AddCollectionItemForm`, `EditCollectionItemForm`, `CollectionItemSealedFields`, `AddWishlistItemForm`, `PrioritySelect`, `ActivateWishlistForm`, `WishlistManageList`, `EventListingFilters`, `ListingOfficialCard`, `UserTradeMatchCard`, `SendMessageForm`, `ReplyMessageForm`, `MessageStatusAlert`, `ProfileForm`, `UserProfileLink`, `SetBrowserCard`, `SetBrowserGrid`, `SetCompletionStatsPanel`, `SetBrowserBinder`, `CollectorDashboard`
 - **Stack:** Next.js 16 App Router, React 19, Tailwind v4, Supabase SSR
 
 ## Build next (priority order)
@@ -318,9 +318,85 @@ ALTER TABLE public.collection_items
 - Listing rows do not store `image_url`; thumbnails for sealed listings resolve via live `collection_item_id` lookup (breaks if collection item deleted or image cleared later)
 - Legacy sealed rows without `sealed_product_type` must pick a product type on next edit
 
+## Event Experience v2 — Phase 1 (done)
+
+Transforms `/events/[id]` from a simple listing page into the central event hub. Architecture-first: stats, personal dashboard, vendor model, visitor presence, QR profiles.
+
+**Architecture:**
+
+| Layer | Responsibility |
+|---|---|
+| `lib/event-experience.ts` | Event stats, presence, personal dashboard data (`loadEventStats`, `loadEventPresence`, `loadEventPersonalDashboard`) |
+| `lib/site-url.ts` | Public profile URLs for QR codes (`NEXT_PUBLIC_SITE_URL`) |
+| `lib/listing-matches.ts` | Reused for trader match cards on event dashboard |
+| `app/events/[id]/actions.ts` | `updateEventPresence` — attending / currently-at toggles |
+| Components | `EventHero`, `EventPersonalDashboard`, `EventPresenceControls`, `VendorBadge`, `ProfileQrCode` |
+
+**Migration** (`supabase/migrations/20260715193000_event_experience_v2_foundation.sql`):
+
+- `events.banner_url`
+- `users.is_vendor`, `users.vendor_stand_number`
+- `event_attendees` table with `is_attending`, `is_currently_at_event`
+
+**Event hero stats:**
+
+- **Attendees** — `event_attendees` count; falls back to distinct listing owners (marked “estimated”) when no rows yet
+- **Listings** — active listings at event
+- **Wishlists** — active `want` listings at event
+- **Here now** — attendees with `is_currently_at_event = true`
+
+**Personal dashboard (signed in):**
+
+- Listings you're bringing — user's active sale/trade listings at event
+- Wishlist matches — permanent wishlist vs others' offer listings at event
+- Traders matching your interests — top 5 `findUserTradeMatches` results for this event
+- QR profile card — links to `/users/[id]`
+
+**Vendor model (foundation):**
+
+- `users.is_vendor` + `vendor_stand_number` → `VendorBadge` on listing cards and public profiles
+- No vendor admin UI yet; set flags directly in Supabase for testing
+
+**Visitor presence (foundation):**
+
+- Toggle **Mark attending** / **Check in here** on event page
+- No websockets; counts refresh on page load
+
+**Files changed:**
+
+| Area | Files |
+|---|---|
+| Migration | `supabase/migrations/20260715193000_event_experience_v2_foundation.sql` |
+| Data | `lib/event-experience.ts`, `lib/site-url.ts` |
+| Actions | `app/events/[id]/actions.ts` |
+| Page | `app/events/[id]/page.tsx` |
+| Components | `EventHero.tsx`, `EventPersonalDashboard.tsx`, `EventPresenceControls.tsx`, `VendorBadge.tsx`, `ProfileQrCode.tsx` |
+| Profile | `app/users/[id]/page.tsx` |
+| Env | `.env.example` (`NEXT_PUBLIC_SITE_URL`) |
+| Deps | `qrcode`, `@types/qrcode` |
+
+**How to test:**
+
+1. Apply migration in Supabase.
+2. Set `NEXT_PUBLIC_SITE_URL=https://collektrz.com` in Vercel for absolute QR URLs.
+3. Open `/events/[id]` — confirm hero banner gradient, stat pills, marketplace section.
+4. Sign in → personal dashboard appears with three panels + QR code.
+5. Toggle attending / check-in → refresh → stats update.
+6. Set `users.is_vendor = true`, `vendor_stand_number = 'A12'` for a listing owner → vendor badge on their listing.
+7. Open `/users/[id]` → QR code renders profile URL.
+
+**Future phases (not implemented):**
+
+- Phase 2: Join-code event registration, vendor self-service admin, vendor-filtered marketplace
+- Phase 3: Live presence (websockets), “traders near you”, check-in geofencing
+- Phase 4: Printable QR badges, event analytics dashboard, event banner upload
+- Phase 5: Event chat channels, push notifications, match alerts
+
 ## Supabase schema
 
-**`events`:** `id`, `name`, `location`, `start_date`, `end_date`, `join_code`, `created_by`, `created_at`
+**`events`:** `id`, `name`, `location`, `start_date`, `end_date`, `join_code`, `banner_url`, `created_by`, `created_at`
+
+**`event_attendees`:** `id`, `event_id`, `user_id`, `is_attending`, `is_currently_at_event`, `created_at`, `updated_at` — unique `(event_id, user_id)`
 
 **`listings`:** `id`, `event_id`, `user_id`, `type` (`want`|`trade`|`sale`), `card_name`, `card_ref` (required), `trade_for`, `target_price`, `status` (`active`|`reserved`|`completed`|`removed`), `condition`, `set_name`, `notes`, `language`, `tcg_api_card_id`, `card_number`, `set_id`, `collection_item_id` (optional), `wishlist_item_id` (optional), `created_at`, `updated_at`
 
@@ -332,7 +408,7 @@ ALTER TABLE public.collection_items
 
 **`messages`:** `id`, `sender_id`, `recipient_id`, `listing_id` (optional), `parent_message_id` (optional), `body`, `read_at` (optional), `created_at`
 
-**`users`:** `id`, `email`, `display_name`, `bio`, `location`, `favorite_pokemon`, `avatar_url`, `created_at`
+**`users`:** `id`, `email`, `display_name`, `bio`, `location`, `favorite_pokemon`, `avatar_url`, `is_vendor`, `vendor_stand_number`, `created_at`
 
 **Links:** `event_id` → event; `user_id` → auth user; `listing_id` → listing; `collection_item_id` → collection item (provenance only); `wishlist_item_id` → wishlist item (provenance only); `listing_interests` embed `users` via `user_id`; `messages` link sender/recipient → `users`, optional `listing_id` → `listings`
 
@@ -371,6 +447,7 @@ ALTER TABLE public.collection_items
 | Set Browser (UX polish) | Done |
 | Collection Dashboard (Home) | Done |
 | Pokémon Sealed Products (MVP) | Done |
+| Event Experience v2 (Phase 1) | Done |
 | Join event | Not started |
 
 ## Future: Bulk add cards by set/range
@@ -412,6 +489,7 @@ Blockers for remaining items: binder layout, collection unique index for officia
   - `supabase/migrations/20260628190000_add_wishlist_item_id_to_listings.sql`
   - `supabase/migrations/20260628200000_wishlist_unique_constraints.sql`
   - `supabase/migrations/20260715180000_add_sealed_product_fields.sql`
+  - `supabase/migrations/20260715193000_event_experience_v2_foundation.sql`
 - Language values live in `lib/languages.ts` (dropdown only; DB stores plain text).
 - Sealed collection: product types + conditions in `lib/sealed-products.ts`; image URL max 500 chars, http/https only; `getListingThumbnailUrl` in `lib/collection-items.ts` for sealed listing thumbnails via `collection_item_id`
 - After changes: `npm run build`.

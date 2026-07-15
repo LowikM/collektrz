@@ -21,6 +21,7 @@ Web app for collectors to browse in-person trading events, manage collections an
 | `id` | uuid |
 | `email`, `display_name` | text |
 | `bio`, `location`, `favorite_pokemon`, `avatar_url` | text (optional) |
+| `is_vendor`, `vendor_stand_number` | boolean / text (optional; vendor badge + stand on listings/profiles) |
 | `created_at` | timestamptz |
 
 ### `public.events`
@@ -30,8 +31,20 @@ Web app for collectors to browse in-person trading events, manage collections an
 | `name`, `location` | text |
 | `start_date`, `end_date` | date/timestamptz |
 | `join_code` | text |
+| `banner_url` | text (optional; hero banner image URL) |
 | `created_by` | uuid → auth user |
 | `created_at` | timestamptz |
+
+### `public.event_attendees`
+| Column | Type |
+|---|---|
+| `id` | uuid |
+| `event_id` | uuid → `events.id` |
+| `user_id` | uuid → `users.id` |
+| `is_attending` | boolean (default true) |
+| `is_currently_at_event` | boolean (default false) |
+| Unique per event | `(event_id, user_id)` |
+| `created_at`, `updated_at` | timestamptz |
 
 ### `public.listings`
 | Column | Type |
@@ -135,6 +148,7 @@ Unique constraint on `(listing_id, user_id)`. Replaces legacy `interests` table.
 - **Set Browser (UX polish):** clearer status badges, stronger selection states, improved binder filter slots, mobile-friendly bulk toolbar, loading skeletons, richer empty states
 - **Collection Dashboard (Home):** logged-in `/` shows collector dashboard with collection/trading/event stats, continue collecting sets, top wishlist cards, quick actions; guests see landing page
 - **Pokémon Sealed Products (MVP):** sealed-specific collection form fields (product type, sealed condition, image URL); sealed badges and thumbnails on `/my-collection`; listing create/display prefills from sealed collection items via `collection_item_id` image fallback
+- **Event Experience v2 (Phase 1):** premium `/events/[id]` hero with stats; logged-in personal dashboard (listings bringing, wishlist matches, trader matches); vendor badges; visitor presence toggles (`event_attendees`); QR profile component; `lib/event-experience.ts` data layer
 
 ## Existing routes
 
@@ -153,15 +167,16 @@ Unique constraint on `(listing_id, user_id)`. Replaces legacy `interests` table.
 | `/my-matches` | Protected | User-centric trade matches grouped by event + collector |
 | `/messages` | Protected | Sent and received messages inbox |
 | `/events` | Public | Event list |
-| `/events/[id]` | Public | Event detail |
+| `/events/[id]` | Public | Event hub — hero stats, personal dashboard (signed in), presence toggles, marketplace listings |
 | `/events/[id]/new-listing` | Protected | Create sale/trade listing from collection or manual entry |
 | `/events/[id]/activate-wishlist` | Protected | Activate wishlist items as want listings for event |
 
 ## Remaining roadmap
 
-1. **Join event** — use `join_code` to associate users with events
-2. **Collection Projects** — generic project system (see design doc; not implemented)
-3. **Real-time chat / threaded conversations / notifications** — future enhancements (not in MVP)
+1. **Join event** — use `join_code` to associate users with events (partially prepared via `event_attendees`)
+2. **Event Experience v2 Phase 2+** — live presence, vendor admin, printable QR badges, event analytics
+3. **Collection Projects** — generic project system (see design doc; not implemented)
+4. **Real-time chat / threaded conversations / notifications** — future enhancements (not in MVP)
 
 ## Important implementation decisions
 

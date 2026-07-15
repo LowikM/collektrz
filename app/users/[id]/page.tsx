@@ -1,11 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { ProfileQrCode } from "@/components/ProfileQrCode";
+import { VendorBadge } from "@/components/VendorBadge";
 import {
   formatMemberSince,
   getUserDisplayLabel,
   type PublicUserProfile,
 } from "@/lib/users";
+import { getPublicProfileUrl } from "@/lib/site-url";
 import { createClient } from "@/lib/supabase/server";
 
 type PublicUserProfilePageProps = {
@@ -21,7 +24,7 @@ export default async function PublicUserProfilePage({
   const { data: profile, error } = await supabase
     .from("users")
     .select(
-      "id, email, display_name, bio, location, favorite_pokemon, avatar_url, created_at",
+      "id, email, display_name, bio, location, favorite_pokemon, avatar_url, is_vendor, vendor_stand_number, created_at",
     )
     .eq("id", id)
     .maybeSingle();
@@ -30,7 +33,11 @@ export default async function PublicUserProfilePage({
     notFound();
   }
 
-  const userProfile = profile as PublicUserProfile;
+  const userProfile = profile as PublicUserProfile & {
+    is_vendor?: boolean;
+    vendor_stand_number?: string | null;
+  };
+  const profileUrl = getPublicProfileUrl(id);
 
   const { count: activeListingsCount, error: listingsError } = await supabase
     .from("listings")
@@ -64,9 +71,14 @@ export default async function PublicUserProfilePage({
             )}
 
             <div className="min-w-0 flex-1">
-              <h1 className="text-2xl font-semibold tracking-tight">
-                {getUserDisplayLabel(userProfile)}
-              </h1>
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-2xl font-semibold tracking-tight">
+                  {getUserDisplayLabel(userProfile)}
+                </h1>
+                {userProfile.is_vendor ? (
+                  <VendorBadge standNumber={userProfile.vendor_stand_number} />
+                ) : null}
+              </div>
               <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
                 {userProfile.email}
               </p>
@@ -124,6 +136,8 @@ export default async function PublicUserProfilePage({
             ) : null}
           </dl>
         </div>
+
+        <ProfileQrCode url={profileUrl} />
       </div>
     </div>
   );
