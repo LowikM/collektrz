@@ -2,6 +2,10 @@
 
 import { useEffect, useState } from "react";
 
+import {
+  getCardSearchUserMessage,
+  type PokemonTcgErrorCode,
+} from "@/lib/pokemon-tcg-errors";
 import type { PokemonTcgCardSearchResult } from "@/lib/pokemon-tcg";
 
 const MIN_QUERY_LENGTH = 2;
@@ -17,6 +21,19 @@ type CardSearchComboboxProps = {
   inputClassName?: string;
   inputId?: string;
 };
+
+type CardSearchErrorPayload = {
+  error?: string;
+  code?: PokemonTcgErrorCode;
+};
+
+function getSearchErrorMessage(payload: CardSearchErrorPayload | null) {
+  if (payload?.code) {
+    return getCardSearchUserMessage(payload.code);
+  }
+
+  return payload?.error ?? getCardSearchUserMessage("upstream");
+}
 
 export function CardSearchCombobox({
   selectedCard,
@@ -55,18 +72,18 @@ export function CardSearchCombobox({
           { signal: controller.signal },
         );
 
+        const data = (await response.json().catch(() => null)) as
+          | ({ results?: PokemonTcgCardSearchResult[] } & CardSearchErrorPayload)
+          | null;
+
         if (!response.ok) {
           setResults([]);
           setHasSearched(true);
-          setSearchError("Search is temporarily unavailable.");
+          setSearchError(getSearchErrorMessage(data));
           return;
         }
 
-        const data = (await response.json()) as {
-          results?: PokemonTcgCardSearchResult[];
-        };
-
-        setResults(data.results ?? []);
+        setResults(data?.results ?? []);
         setHasSearched(true);
       } catch (error) {
         if (error instanceof Error && error.name === "AbortError") {
@@ -75,7 +92,7 @@ export function CardSearchCombobox({
 
         setResults([]);
         setHasSearched(true);
-        setSearchError("Search is temporarily unavailable.");
+        setSearchError(getCardSearchUserMessage("network"));
       } finally {
         if (!controller.signal.aborted) {
           setIsLoading(false);

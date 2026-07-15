@@ -388,8 +388,8 @@ Blockers for remaining items: binder layout, collection unique index for officia
 ## Tips for the next chat
 
 - Run `npm run dev` (Turbopack). Env in `.env.local`.
-- Optional server env: `POKEMON_TCG_API_KEY` (Pokémon TCG Developer Portal; higher rate limits than unauthenticated).
-- Card search: `GET /api/card-search?q=char` while logged in → `{ results: [...] }` with `images.small` for display only (not stored in DB). Future images: `getCardById` / `getCardImagesById` in `lib/pokemon-tcg.ts`.
+- Optional server env: `POKEMON_TCG_API_KEY` (Pokémon TCG Developer Portal; **recommended in production** — without it, `api.pokemontcg.io` applies much lower rate limits and requests often time out from Vercel). Server-only; never `NEXT_PUBLIC_`. Set in Vercel → Settings → Environment Variables.
+- Card search: `GET /api/card-search?q=char` while logged in → `{ results: [...] }` or `{ error, code }` (`timeout`, `rate_limit`, etc.). Upstream calls use 6s timeout + one retry for transient failures; logs include `code`, `status`, `hasApiKey` (never the key).
 - Dashboard: logged-in `/` uses `loadCollectorDashboard` in `lib/dashboard.ts`; recent sets cookie `pet_recent_sets` via POST `/api/sets/[setId]/recent` on set page load
 - Set browser: `/sets/[setId]` — Grid/Binder toggle (`pet-set-browser-view` localStorage); binder pagination via `computeBinderPageSummaries` in `lib/set-browser.ts`; completion stats, filters, bulk actions unchanged; loading skeletons at `app/sets/loading.tsx` and `app/sets/[setId]/loading.tsx`
 - Create listing: `/events/[id]/new-listing` accepts **sale/trade only**; `createListing` rejects `type=want`; want listings via `activateWishlistForEvent`; legacy want rows kept

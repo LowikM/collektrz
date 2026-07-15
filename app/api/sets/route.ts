@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
 
+import {
+  getCardSearchUserMessage,
+  logPokemonTcgFailure,
+  pokemonTcgErrorToResponse,
+} from "@/lib/pokemon-tcg-errors";
 import { PokemonTcgApiError, searchSets } from "@/lib/pokemon-tcg";
 import { createClient } from "@/lib/supabase/server";
 
@@ -51,13 +56,15 @@ export async function GET(request: Request) {
     return NextResponse.json({ results });
   } catch (error) {
     if (error instanceof PokemonTcgApiError) {
-      console.error("[sets-search] upstream failure", {
-        status: error.status,
-        query,
-      });
+      logPokemonTcgFailure("sets-search", error, { query, pageSize });
+      const response = pokemonTcgErrorToResponse(
+        error,
+        "Set search is temporarily unavailable.",
+      );
+
       return NextResponse.json(
-        { error: "Set search is temporarily unavailable." },
-        { status: 502 },
+        { error: response.error, code: response.code },
+        { status: response.status },
       );
     }
 

@@ -1,6 +1,15 @@
+import {
+  classifyPokemonTcgStatus,
+  hasPokemonTcgApiKey,
+  type PokemonTcgErrorCode,
+} from "@/lib/pokemon-tcg-errors";
+
 const API_BASE_URL = "https://api.pokemontcg.io/v2";
-const REQUEST_TIMEOUT_MS = 10_000;
+const REQUEST_TIMEOUT_MS = 6_000;
+const RETRY_TIMEOUT_MS = 4_000;
 const SEARCH_CACHE_TTL_MS = 5 * 60 * 1000;
+
+const NON_RETRYABLE_STATUSES = new Set([400, 401, 403, 404, 429]);
 
 const SEARCH_SELECT = "id,name,number,set,images";
 const CARD_SELECT = "id,name,number,set,images";
@@ -90,13 +99,22 @@ type PokemonTcgPaginatedResponse<T> = {
 
 export class PokemonTcgApiError extends Error {
   status: number;
+  code: PokemonTcgErrorCode;
 
-  constructor(status: number, message: string) {
+  constructor(
+    status: number,
+    message: string,
+    code: PokemonTcgErrorCode = classifyPokemonTcgStatus(status),
+  ) {
     super(message);
     this.name = "PokemonTcgApiError";
     this.status = status;
+    this.code = code;
   }
 }
+
+export type { PokemonTcgErrorCode } from "@/lib/pokemon-tcg-errors";
+export { hasPokemonTcgApiKey } from "@/lib/pokemon-tcg-errors";
 
 type SearchCacheEntry = {
   expiresAt: number;
@@ -476,9 +494,10 @@ export function formatSetReleaseDate(date: string) {
   });
 }
 
-async function fetchPokemonTcg<T>(
+async function fetchPokemonTcgOnce<T>(
   path: string,
-  searchParams?: Record<string, string>,
+  searchParams: Record<string, string> | undefined,
+  timeoutMs: number,
 ): Promise<T> {
   const url = new URL(`${API_BASE_URL}${path}`);
 
@@ -489,7 +508,7 @@ async function fetchPokemonTcg<T>(
   }
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const response = await fetch(url, {
@@ -500,14 +519,18 @@ async function fetchPokemonTcg<T>(
 
     if (!response.ok) {
       const body = await response.text();
+      const code = classifyPokemonTcgStatus(response.status);
       console.error("[pokemon-tcg] upstream error", {
+        code,
         status: response.status,
-        url: url.toString(),
-        body: body.slice(0, 500),
+        path,
+        hasApiKey: hasPokemonTcgApiKey(),
+        bodyPreview: body.slice(0, 200),
       });
       throw new PokemonTcgApiError(
         response.status,
         body || `Pokémon TCG API request failed with status ${response.status}`,
+        code,
       );
     }
 
@@ -518,18 +541,80 @@ async function fetchPokemonTcg<T>(
     }
 
     if (error instanceof Error && error.name === "AbortError") {
-      console.error("[pokemon-tcg] request timed out", url.toString());
-      throw new PokemonTcgApiError(504, "Pokémon TCG API request timed out");
+      console.error("[pokemon-tcg] request timed out", {
+        path,
+        timeoutMs,
+        hasApiKey: hasPokemonTcgApiKey(),
+      });
+      throw new PokemonTcgApiError(
+        504,
+        "Pokémon TCG API request timed out",
+        "timeout",
+      );
     }
 
-    console.error(
-      "[pokemon-tcg] unexpected fetch error",
-      error instanceof Error ? error.message : String(error),
+    console.error("[pokemon-tcg] network fetch error", {
+      path,
+      hasApiKey: hasPokemonTcgApiKey(),
+      message: error instanceof Error ? error.message : String(error),
+    });
+    throw new PokemonTcgApiError(
+      0,
+      error instanceof Error ? error.message : "Network request failed",
+      "network",
     );
-    throw error;
   } finally {
     clearTimeout(timeout);
   }
+}
+
+function isTransientPokemonTcgFailure(error: unknown) {
+  if (error instanceof PokemonTcgApiError) {
+    if (NON_RETRYABLE_STATUSES.has(error.status)) {
+      return false;
+    }
+
+    return (
+      error.code === "timeout" ||
+      error.code === "upstream" ||
+      error.code === "network"
+    );
+  }
+
+  return error instanceof TypeError;
+}
+
+async function fetchPokemonTcg<T>(
+  path: string,
+  searchParams?: Record<string, string>,
+): Promise<T> {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const timeoutMs = attempt === 0 ? REQUEST_TIMEOUT_MS : RETRY_TIMEOUT_MS;
+
+    try {
+      return await fetchPokemonTcgOnce<T>(path, searchParams, timeoutMs);
+    } catch (error) {
+      lastError = error;
+
+      if (attempt === 0 && isTransientPokemonTcgFailure(error)) {
+        console.warn("[pokemon-tcg] retrying transient upstream failure", {
+          attempt: attempt + 2,
+          path,
+          hasApiKey: hasPokemonTcgApiKey(),
+          ...(error instanceof PokemonTcgApiError
+            ? { code: error.code, status: error.status }
+            : {}),
+        });
+        continue;
+      }
+
+      throw error;
+    }
+  }
+
+  throw lastError;
 }
 
 export async function searchCards(

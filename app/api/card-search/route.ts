@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
 
+import {
+  getCardSearchUserMessage,
+  logPokemonTcgFailure,
+  pokemonTcgErrorToResponse,
+} from "@/lib/pokemon-tcg-errors";
 import { PokemonTcgApiError, searchCards } from "@/lib/pokemon-tcg";
 import { createClient } from "@/lib/supabase/server";
 
@@ -17,7 +22,10 @@ export async function GET(request: Request) {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json(
+      { error: "Unauthorized", code: "authentication" },
+      { status: 401 },
+    );
   }
 
   const { searchParams } = new URL(request.url);
@@ -25,13 +33,16 @@ export async function GET(request: Request) {
 
   if (query.length < MIN_QUERY_LENGTH) {
     return NextResponse.json(
-      { error: `Query must be at least ${MIN_QUERY_LENGTH} characters.` },
+      { error: `Query must be at least ${MIN_QUERY_LENGTH} characters.`, code: "upstream" },
       { status: 400 },
     );
   }
 
   if (query.length > MAX_QUERY_LENGTH) {
-    return NextResponse.json({ error: "Query is too long." }, { status: 400 });
+    return NextResponse.json(
+      { error: "Query is too long.", code: "upstream" },
+      { status: 400 },
+    );
   }
 
   const pageSizeParam = searchParams.get("pageSize");
@@ -41,7 +52,10 @@ export async function GET(request: Request) {
 
   if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > MAX_PAGE_SIZE) {
     return NextResponse.json(
-      { error: `Invalid pageSize. Must be between 1 and ${MAX_PAGE_SIZE}.` },
+      {
+        error: `Invalid pageSize. Must be between 1 and ${MAX_PAGE_SIZE}.`,
+        code: "upstream",
+      },
       { status: 400 },
     );
   }
@@ -51,16 +65,23 @@ export async function GET(request: Request) {
     return NextResponse.json({ results });
   } catch (error) {
     if (error instanceof PokemonTcgApiError) {
-      console.error("[card-search] upstream failure", {
-        status: error.status,
-        query,
-      });
+      logPokemonTcgFailure("card-search", error, { query, pageSize });
+      const response = pokemonTcgErrorToResponse(
+        error,
+        getCardSearchUserMessage(error.code),
+      );
+
       return NextResponse.json(
-        { error: "Card search is temporarily unavailable." },
-        { status: 502 },
+        { error: response.error, code: response.code },
+        { status: response.status },
       );
     }
 
+    console.error("[card-search] unexpected failure", {
+      query,
+      pageSize,
+      message: error instanceof Error ? error.message : String(error),
+    });
     throw error;
   }
 }
