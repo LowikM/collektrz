@@ -69,6 +69,7 @@ Web app for collectors to browse in-person trading events, manage collections an
 | `card_name`, `card_ref` | text (`card_ref` derived from `card_name`) |
 | `set_name`, `condition`, `notes`, `language` | text (optional) |
 | `tcg_api_card_id`, `card_number`, `set_id` | text (optional; Pokémon TCG API metadata) |
+| `sealed_product_type`, `image_url` | text (optional; sealed products only — product type label and external image URL) |
 | `quantity` | integer (default 1) |
 | `created_at`, `updated_at` | timestamptz |
 
@@ -133,6 +134,7 @@ Unique constraint on `(listing_id, user_id)`. Replaces legacy `interests` table.
 - **Set Browser (Phase 4 — binder mode):** Grid/Binder toggle (localStorage); 9-card binder pages with page navigation + overview sidebar/drawer; status-based borders on binder cards
 - **Set Browser (UX polish):** clearer status badges, stronger selection states, improved binder filter slots, mobile-friendly bulk toolbar, loading skeletons, richer empty states
 - **Collection Dashboard (Home):** logged-in `/` shows collector dashboard with collection/trading/event stats, continue collecting sets, top wishlist cards, quick actions; guests see landing page
+- **Pokémon Sealed Products (MVP):** sealed-specific collection form fields (product type, sealed condition, image URL); sealed badges and thumbnails on `/my-collection`; listing create/display prefills from sealed collection items via `collection_item_id` image fallback
 
 ## Existing routes
 

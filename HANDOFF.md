@@ -24,6 +24,7 @@ Read `PROJECT_CONTEXT.md` first. Use the **actual Supabase schema** below — do
 - **Set Browser (Phase 4 — binder mode):** Grid/Binder toggle; `SetBrowserBinder`; binder pagination helpers in `lib/set-browser.ts`
 - **Set Browser (UX polish):** status badge dots, selection highlight, binder hidden slots, scrollable mobile bulk toolbar, `app/sets/loading.tsx` + `app/sets/[setId]/loading.tsx`, empty-state copy on `/sets` and set detail
 - **Collection Dashboard (Home):** logged-in `/` via `loadCollectorDashboard` in `lib/dashboard.ts`; `CollectorDashboard` component; recent set cookie via POST `/api/sets/[setId]/recent` after set page load
+- **Pokémon Sealed Products (MVP):** `lib/sealed-products.ts` constants + validation; `lib/collection-items.ts` image helpers; sealed form fields in `AddCollectionItemForm` / `EditCollectionItemForm`; `collection_items.sealed_product_type` + `image_url`; listing thumbnails fall back to collection image when `collection_item_id` is set
 - **Listing from collection:** searchable picker prefills form; snapshot on insert + optional `collection_item_id`
 - **Language:** optional dropdown on collection + listings (13 values); snapshotted when creating listings
 - **Pokémon TCG API (Phase A):** `lib/pokemon-tcg.ts`, `GET /api/card-search?q=...` (auth required); optional `POKEMON_TCG_API_KEY`; DB columns `tcg_api_card_id`, `card_number`, `set_id`; no images stored in DB
@@ -32,7 +33,7 @@ Read `PROJECT_CONTEXT.md` first. Use the **actual Supabase schema** below — do
 - **Pokémon TCG API (Phase D):** collection API fields snapshotted on listing create; thumbnails + badges on event + My Listings pages via `getCardImagesByIds`
 - **Event listing search & filters:** `/events/[id]` GET form → URL params; Supabase query filtering in `lib/listing-filters.ts` + `EventListingFilters`
 - **Matching engine (V2):** `/my-matches` — `findUserTradeMatches()` in `lib/listing-matches.ts`; grouped by event + user; perfect/strong/direct/reverse categories; no DB table
-- **UI:** `Navbar`, `EventCard`, `ListingInterest`, `NewListingForm`, `LanguageSelect`, `CardSearchCombobox`, `AddCollectionItemForm`, `AddWishlistItemForm`, `PrioritySelect`, `ActivateWishlistForm`, `WishlistManageList`, `EventListingFilters`, `ListingOfficialCard`, `UserTradeMatchCard`, `SendMessageForm`, `ReplyMessageForm`, `MessageStatusAlert`, `ProfileForm`, `UserProfileLink`, `SetBrowserCard`, `SetBrowserGrid`, `SetCompletionStatsPanel`, `SetBrowserBinder`, `CollectorDashboard`
+- **UI:** `Navbar`, `EventCard`, `ListingInterest`, `NewListingForm`, `LanguageSelect`, `CardSearchCombobox`, `AddCollectionItemForm`, `EditCollectionItemForm`, `CollectionItemSealedFields`, `AddWishlistItemForm`, `PrioritySelect`, `ActivateWishlistForm`, `WishlistManageList`, `EventListingFilters`, `ListingOfficialCard`, `UserTradeMatchCard`, `SendMessageForm`, `ReplyMessageForm`, `MessageStatusAlert`, `ProfileForm`, `UserProfileLink`, `SetBrowserCard`, `SetBrowserGrid`, `SetCompletionStatsPanel`, `SetBrowserBinder`, `CollectorDashboard`
 - **Stack:** Next.js 16 App Router, React 19, Tailwind v4, Supabase SSR
 
 ## Build next (priority order)
@@ -266,6 +267,57 @@ Recent sets: cookie `pet_recent_sets` updated on `/sets/[setId]` visit; fallback
 
 **Future improvements:** join-code event attendance, dedicated recent-sets DB, dashboard widgets for match highlights, collection value/condition breakdown, redirect login to `/` instead of `/profile`.
 
+## Pokémon Sealed Products MVP (done)
+
+Improves collection management for sealed Pokémon products (Booster Box, ETB, Tin, etc.) without changing the card flow.
+
+**Card vs sealed form behavior:**
+
+| Field | Card | Sealed |
+|---|---|---|
+| Name label | Card name | Product name |
+| Entry | TCG search or manual | Manual only |
+| Product type | — | Required dropdown (9 values + Other) |
+| Condition | Free text | Factory Sealed / Seal Damaged / Opened |
+| Image | — | Optional paste URL + live preview |
+| Set, quantity, language, notes | Same | Same |
+
+**Migration** (`supabase/migrations/20260715180000_add_sealed_product_fields.sql`):
+
+```sql
+ALTER TABLE public.collection_items
+  ADD COLUMN IF NOT EXISTS sealed_product_type text,
+  ADD COLUMN IF NOT EXISTS image_url text;
+```
+
+**Files changed:**
+
+| Area | Files |
+|---|---|
+| Migration | `supabase/migrations/20260715180000_add_sealed_product_fields.sql` |
+| Validation | `lib/sealed-products.ts`, `lib/collection-items.ts` |
+| Forms | `components/AddCollectionItemForm.tsx`, `components/EditCollectionItemForm.tsx`, `components/CollectionItemSealedFields.tsx` |
+| Collection | `app/my-collection/actions.ts`, `app/my-collection/page.tsx` |
+| Listings | `components/NewListingForm.tsx`, `app/events/[id]/new-listing/page.tsx`, `app/events/[id]/page.tsx`, `app/my-listings/page.tsx`, `app/my-interests/page.tsx` |
+
+**How to test:**
+
+1. Apply migration in Supabase SQL editor.
+2. `/my-collection` → Item kind **Sealed** → add e.g. “151 Elite Trainer Box”, product type **Elite Trainer Box**, condition **Factory Sealed**, optional image URL → confirm preview and **Sealed** badge on list card.
+3. Edit the item → change product type, condition, image URL → save.
+4. Item kind **Card** → confirm search/manual card flow unchanged.
+5. `/events/[id]/new-listing` → pick sealed collection item → product name, sealed condition, set, language prefilled; image preview shown; create sale/trade listing.
+6. Event detail + My Listings + My Interests → sealed listing shows thumbnail when collection item has `image_url` and listing has `collection_item_id`.
+
+**Limitations (by design):**
+
+- No sealed product catalog/search API
+- No file uploads / Supabase Storage
+- No pricing or barcode scanning
+- No generic multi-category architecture
+- Listing rows do not store `image_url`; thumbnails for sealed listings resolve via live `collection_item_id` lookup (breaks if collection item deleted or image cleared later)
+- Legacy sealed rows without `sealed_product_type` must pick a product type on next edit
+
 ## Supabase schema
 
 **`events`:** `id`, `name`, `location`, `start_date`, `end_date`, `join_code`, `created_by`, `created_at`
@@ -274,7 +326,7 @@ Recent sets: cookie `pet_recent_sets` updated on `/sets/[setId]` visit; fallback
 
 **`wishlist_items`:** `id`, `user_id`, `card_name`, `card_ref`, `set_name`, `language`, `notes`, `tcg_api_card_id`, `card_number`, `set_id`, `priority` (1–5, default 3), `created_at`, `updated_at` — unique `(user_id, tcg_api_card_id)` when official; unique `(user_id, card_ref)` when manual
 
-**`collection_items`:** `id`, `user_id`, `item_kind` (`card`|`sealed`), `card_name`, `card_ref`, `set_name`, `condition`, `notes`, `language`, `tcg_api_card_id`, `card_number`, `set_id`, `quantity`, `created_at`, `updated_at`
+**`collection_items`:** `id`, `user_id`, `item_kind` (`card`|`sealed`), `card_name`, `card_ref`, `set_name`, `condition`, `notes`, `language`, `tcg_api_card_id`, `card_number`, `set_id`, `sealed_product_type`, `image_url`, `quantity`, `created_at`, `updated_at`
 
 **`listing_interests`:** `id`, `listing_id`, `user_id`, `created_at` — unique `(listing_id, user_id)`
 
@@ -318,6 +370,7 @@ Recent sets: cookie `pet_recent_sets` updated on `/sets/[setId]` visit; fallback
 | Set Browser (Phase 4 — binder mode) | Done |
 | Set Browser (UX polish) | Done |
 | Collection Dashboard (Home) | Done |
+| Pokémon Sealed Products (MVP) | Done |
 | Join event | Not started |
 
 ## Future: Bulk add cards by set/range
@@ -358,5 +411,7 @@ Blockers for remaining items: binder layout, collection unique index for officia
   - `supabase/migrations/20260628180000_create_wishlist_items.sql`
   - `supabase/migrations/20260628190000_add_wishlist_item_id_to_listings.sql`
   - `supabase/migrations/20260628200000_wishlist_unique_constraints.sql`
+  - `supabase/migrations/20260715180000_add_sealed_product_fields.sql`
 - Language values live in `lib/languages.ts` (dropdown only; DB stores plain text).
+- Sealed collection: product types + conditions in `lib/sealed-products.ts`; image URL max 500 chars, http/https only; `getListingThumbnailUrl` in `lib/collection-items.ts` for sealed listing thumbnails via `collection_item_id`
 - After changes: `npm run build`.

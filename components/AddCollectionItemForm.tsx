@@ -6,6 +6,11 @@ import {
   CardSearchCombobox,
   type CardSearchResult,
 } from "@/components/CardSearchCombobox";
+import {
+  CollectionItemImageField,
+  SealedConditionSelect,
+  SealedProductTypeSelect,
+} from "@/components/CollectionItemSealedFields";
 import { LanguageSelect } from "@/components/LanguageSelect";
 
 type ItemKind = "card" | "sealed";
@@ -34,8 +39,9 @@ export function AddCollectionItemForm({ action }: AddCollectionItemFormProps) {
   const [tcgApiCardId, setTcgApiCardId] = useState("");
 
   const isCard = itemKind === "card";
+  const isSealed = itemKind === "sealed";
   const showSearchMode = isCard && entryMode === "search";
-  const showManualCardName = !showSearchMode;
+  const showManualNameField = isSealed || (isCard && entryMode === "manual");
 
   function clearSelectedCardFields() {
     setSelectedCard(null);
@@ -160,15 +166,32 @@ export function AddCollectionItemForm({ action }: AddCollectionItemFormProps) {
         </>
       ) : null}
 
-      {showManualCardName ? (
+      {showManualNameField ? (
         <div className="space-y-2">
           <label htmlFor="create-card-name" className="text-sm font-medium">
-            Card name <span className="text-red-600">*</span>
+            {isSealed ? "Product name" : "Card name"}{" "}
+            <span className="text-red-600">*</span>
           </label>
           <input
             id="create-card-name"
             name="card_name"
             type="text"
+            required
+            className={inputClassName}
+          />
+        </div>
+      ) : null}
+
+      {isSealed ? (
+        <div className="space-y-2">
+          <label
+            htmlFor="create-sealed-product-type"
+            className="text-sm font-medium"
+          >
+            Product type <span className="text-red-600">*</span>
+          </label>
+          <SealedProductTypeSelect
+            id="create-sealed-product-type"
             required
             className={inputClassName}
           />
@@ -191,16 +214,31 @@ export function AddCollectionItemForm({ action }: AddCollectionItemFormProps) {
         </div>
         <div className="space-y-2">
           <label htmlFor="create-condition" className="text-sm font-medium">
-            Condition
+            {isSealed ? "Sealed condition" : "Condition"}
           </label>
-          <input
-            id="create-condition"
-            name="condition"
-            type="text"
-            className={inputClassName}
-          />
+          {isSealed ? (
+            <SealedConditionSelect
+              id="create-condition"
+              className={inputClassName}
+            />
+          ) : (
+            <input
+              id="create-condition"
+              name="condition"
+              type="text"
+              className={inputClassName}
+            />
+          )}
         </div>
       </div>
+
+      {isSealed ? (
+        <CollectionItemImageField
+          id="create-image-url"
+          inputClassName={inputClassName}
+        />
+      ) : null}
+
       <div className="space-y-2">
         <label htmlFor="create-language" className="text-sm font-medium">
           Language
@@ -221,7 +259,8 @@ export function AddCollectionItemForm({ action }: AddCollectionItemFormProps) {
 
       <button
         type="submit"
-        className="rounded-lg bg-foreground px-4 py-2 text-sm font-medium text-background transition-opacity hover:opacity-90"
+        disabled={!itemKind}
+        className="rounded-lg bg-foreground px-4 py-2 text-sm font-medium text-background transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
       >
         Add item
       </button>

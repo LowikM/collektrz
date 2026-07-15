@@ -10,6 +10,10 @@ import {
   ListingOfficialCardBadges,
 } from "@/components/ListingOfficialCard";
 import {
+  getCollectionItemImageUrlsByIds,
+  getListingThumbnailUrl,
+} from "@/lib/collection-items";
+import {
   escapeIlikePattern,
   hasActiveListingFilters,
   LISTING_SORT_OPTIONS,
@@ -44,6 +48,7 @@ type Listing = {
   tcg_api_card_id: string | null;
   card_number: string | null;
   set_id: string | null;
+  collection_item_id: string | null;
   created_at: string;
   updated_at: string;
   users: ListingOwner | ListingOwner[] | null;
@@ -121,7 +126,7 @@ export default async function EventDetailPage({
   let listingsQuery = supabase
     .from("listings")
     .select(
-      "id, event_id, user_id, type, card_name, trade_for, status, condition, set_name, notes, language, tcg_api_card_id, card_number, set_id, created_at, updated_at, users(id, display_name, email)",
+      "id, event_id, user_id, type, card_name, trade_for, status, condition, set_name, notes, language, tcg_api_card_id, card_number, set_id, collection_item_id, created_at, updated_at, users(id, display_name, email)",
     )
     .eq("event_id", id)
     .eq("status", "active");
@@ -158,6 +163,12 @@ export default async function EventDetailPage({
     activeListings
       .map((listing) => listing.tcg_api_card_id)
       .filter((listingId): listingId is string => Boolean(listingId)),
+  );
+  const collectionItemImagesById = await getCollectionItemImageUrlsByIds(
+    supabase,
+    activeListings
+      .map((listing) => listing.collection_item_id)
+      .filter((id): id is string => Boolean(id)),
   );
   const listingIds = activeListings.map((listing) => listing.id);
 
@@ -277,9 +288,11 @@ export default async function EventDetailPage({
           ) : (
             <ul className="grid gap-4">
               {activeListings.map((listing) => {
-                const imageUrl = listing.tcg_api_card_id
-                  ? (cardImagesById.get(listing.tcg_api_card_id)?.small ?? null)
-                  : null;
+                const imageUrl = getListingThumbnailUrl(
+                  listing,
+                  cardImagesById,
+                  collectionItemImagesById,
+                );
                 const owner = getListingOwner(listing.users);
 
                 return (

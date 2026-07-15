@@ -8,6 +8,10 @@ import {
 } from "@/components/ListingOfficialCard";
 import { MessageStatusAlert } from "@/components/MessageStatusAlert";
 import { SendMessageForm } from "@/components/SendMessageForm";
+import {
+  getCollectionItemImageUrlsByIds,
+  getListingThumbnailUrl,
+} from "@/lib/collection-items";
 import { getCardImagesByIds } from "@/lib/pokemon-tcg";
 import { createClient } from "@/lib/supabase/server";
 
@@ -30,6 +34,7 @@ type EmbeddedListing = {
   tcg_api_card_id: string | null;
   card_number: string | null;
   set_id: string | null;
+  collection_item_id: string | null;
   events: EmbeddedEvent | EmbeddedEvent[] | null;
 };
 
@@ -120,6 +125,7 @@ export default async function MyInterestsPage({
         tcg_api_card_id,
         card_number,
         set_id,
+        collection_item_id,
         events(id, name)
       )
     `,
@@ -134,6 +140,12 @@ export default async function MyInterestsPage({
   const cardImagesById = await getCardImagesByIds(
     listings
       .map((listing) => listing.tcg_api_card_id)
+      .filter((id): id is string => Boolean(id)),
+  );
+  const collectionItemImagesById = await getCollectionItemImageUrlsByIds(
+    supabase,
+    listings
+      .map((listing) => listing.collection_item_id)
       .filter((id): id is string => Boolean(id)),
   );
 
@@ -184,9 +196,11 @@ export default async function MyInterestsPage({
 
               const eventId = getEventId(listing.events);
               const eventName = getEventName(listing.events);
-              const imageUrl = listing.tcg_api_card_id
-                ? (cardImagesById.get(listing.tcg_api_card_id)?.small ?? null)
-                : null;
+              const imageUrl = getListingThumbnailUrl(
+                listing,
+                cardImagesById,
+                collectionItemImagesById,
+              );
               const removeListingInterest = removeInterest.bind(null, listing.id);
 
               return (

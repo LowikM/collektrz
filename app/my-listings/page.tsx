@@ -8,6 +8,10 @@ import {
   ListingOfficialCardBadges,
 } from "@/components/ListingOfficialCard";
 import { formatInterestCount } from "@/lib/listing-interests";
+import {
+  getCollectionItemImageUrlsByIds,
+  getListingThumbnailUrl,
+} from "@/lib/collection-items";
 import { getCardImagesByIds } from "@/lib/pokemon-tcg";
 import { createClient } from "@/lib/supabase/server";
 
@@ -36,6 +40,7 @@ type ListingRow = {
   tcg_api_card_id: string | null;
   card_number: string | null;
   set_id: string | null;
+  collection_item_id: string | null;
   created_at: string;
   events: EmbeddedEvent | EmbeddedEvent[] | null;
   listing_interests: EmbeddedInterest[] | null;
@@ -104,6 +109,7 @@ export default async function MyListingsPage({
       tcg_api_card_id,
       card_number,
       set_id,
+      collection_item_id,
       created_at,
       events(name),
       listing_interests(
@@ -120,6 +126,12 @@ export default async function MyListingsPage({
   const cardImagesById = await getCardImagesByIds(
     listings
       .map((listing) => listing.tcg_api_card_id)
+      .filter((id): id is string => Boolean(id)),
+  );
+  const collectionItemImagesById = await getCollectionItemImageUrlsByIds(
+    supabase,
+    listings
+      .map((listing) => listing.collection_item_id)
       .filter((id): id is string => Boolean(id)),
   );
 
@@ -163,9 +175,11 @@ export default async function MyListingsPage({
               const interests = listing.listing_interests ?? [];
               const interestCount = interests.length;
               const updateStatus = updateListingStatus.bind(null, listing.id);
-              const imageUrl = listing.tcg_api_card_id
-                ? (cardImagesById.get(listing.tcg_api_card_id)?.small ?? null)
-                : null;
+              const imageUrl = getListingThumbnailUrl(
+                listing,
+                cardImagesById,
+                collectionItemImagesById,
+              );
 
               return (
                 <li key={listing.id}>

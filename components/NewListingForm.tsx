@@ -3,7 +3,11 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
+import {
+  CollectionItemImagePlaceholder,
+} from "@/components/CollectionItemSealedFields";
 import { LanguageSelect } from "@/components/LanguageSelect";
+import { SEALED_CONDITIONS } from "@/lib/sealed-products";
 
 type CollectionItem = {
   id: string;
@@ -15,6 +19,8 @@ type CollectionItem = {
   language: string | null;
   tcg_api_card_id: string | null;
   card_number: string | null;
+  sealed_product_type: string | null;
+  image_url: string | null;
 };
 
 type NewListingFormProps = {
@@ -44,6 +50,14 @@ export function NewListingForm({
   const [notes, setNotes] = useState("");
   const [language, setLanguage] = useState("");
 
+  const selectedItem = useMemo(
+    () =>
+      collectionItems.find((item) => item.id === selectedCollectionItemId) ??
+      null,
+    [collectionItems, selectedCollectionItemId],
+  );
+  const isSealedSelection = selectedItem?.item_kind === "sealed";
+
   const filteredItems = useMemo(() => {
     const query = search.trim().toLowerCase();
     if (!query) return collectionItems;
@@ -55,6 +69,7 @@ export function NewListingForm({
         item.condition ?? "",
         item.notes ?? "",
         item.language ?? "",
+        item.sealed_product_type ?? "",
         ITEM_KIND_LABELS[item.item_kind],
       ]
         .join(" ")
@@ -135,6 +150,7 @@ export function NewListingForm({
               ) : (
                 filteredItems.map((item) => {
                   const isSelected = selectedCollectionItemId === item.id;
+                  const isSealed = item.item_kind === "sealed";
 
                   return (
                     <li key={item.id}>
@@ -147,34 +163,58 @@ export function NewListingForm({
                             : "border-zinc-200 hover:border-zinc-300 dark:border-zinc-800 dark:hover:border-zinc-700"
                         }`}
                       >
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium uppercase tracking-wide text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
-                            {ITEM_KIND_LABELS[item.item_kind]}
-                          </span>
-                          {item.tcg_api_card_id ? (
-                            <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
-                              Official card
-                            </span>
+                        <div className="flex gap-3">
+                          {isSealed ? (
+                            item.image_url ? (
+                              // eslint-disable-next-line @next/next/no-img-element -- user-provided external product URLs
+                              <img
+                                src={item.image_url}
+                                alt={item.card_name}
+                                width={56}
+                                height={56}
+                                className="h-14 w-14 shrink-0 rounded object-contain"
+                              />
+                            ) : (
+                              <CollectionItemImagePlaceholder size="sm" />
+                            )
                           ) : null}
-                          {item.card_number ? (
-                            <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
-                              #{item.card_number}
-                            </span>
-                          ) : null}
-                          <span className="text-sm font-medium">
-                            {item.card_name}
-                          </span>
+
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium uppercase tracking-wide text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+                                {ITEM_KIND_LABELS[item.item_kind]}
+                              </span>
+                              {isSealed && item.sealed_product_type ? (
+                                <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+                                  {item.sealed_product_type}
+                                </span>
+                              ) : null}
+                              {!isSealed && item.tcg_api_card_id ? (
+                                <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+                                  Official card
+                                </span>
+                              ) : null}
+                              {!isSealed && item.card_number ? (
+                                <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+                                  #{item.card_number}
+                                </span>
+                              ) : null}
+                              <span className="text-sm font-medium">
+                                {item.card_name}
+                              </span>
+                            </div>
+                            {item.set_name ? (
+                              <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
+                                Set: {item.set_name}
+                              </p>
+                            ) : null}
+                            {item.language ? (
+                              <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
+                                Language: {item.language}
+                              </p>
+                            ) : null}
+                          </div>
                         </div>
-                        {item.set_name ? (
-                          <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
-                            Set: {item.set_name}
-                          </p>
-                        ) : null}
-                        {item.language ? (
-                          <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
-                            Language: {item.language}
-                          </p>
-                        ) : null}
                       </button>
                     </li>
                   );
@@ -227,7 +267,8 @@ export function NewListingForm({
 
         <div className="space-y-2">
           <label htmlFor="card_name" className="text-sm font-medium">
-            Card name <span className="text-red-600">*</span>
+            {isSealedSelection ? "Product name" : "Card name"}{" "}
+            <span className="text-red-600">*</span>
           </label>
           <input
             id="card_name"
@@ -239,6 +280,23 @@ export function NewListingForm({
             className={inputClassName}
           />
         </div>
+
+        {isSealedSelection && selectedItem?.image_url ? (
+          <div className="flex items-center gap-3 rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
+            {/* eslint-disable-next-line @next/next/no-img-element -- user-provided external product URLs */}
+            <img
+              src={selectedItem.image_url}
+              alt={selectedItem.card_name}
+              width={56}
+              height={56}
+              className="h-14 w-14 shrink-0 rounded object-contain"
+            />
+            <p className="text-sm text-zinc-600 dark:text-zinc-400">
+              Product image from your collection. Listing pages show this when
+              linked to the collection item.
+            </p>
+          </div>
+        ) : null}
 
         <div className="space-y-2">
           <label htmlFor="trade_for" className="text-sm font-medium">
@@ -267,16 +325,33 @@ export function NewListingForm({
 
         <div className="space-y-2">
           <label htmlFor="condition" className="text-sm font-medium">
-            Condition
+            {isSealedSelection ? "Sealed condition" : "Condition"}
           </label>
-          <input
-            id="condition"
-            name="condition"
-            type="text"
-            value={condition}
-            onChange={(event) => setCondition(event.target.value)}
-            className={inputClassName}
-          />
+          {isSealedSelection ? (
+            <select
+              id="condition"
+              name="condition"
+              value={condition}
+              onChange={(event) => setCondition(event.target.value)}
+              className={inputClassName}
+            >
+              <option value="">Select condition</option>
+              {SEALED_CONDITIONS.map((sealedCondition) => (
+                <option key={sealedCondition} value={sealedCondition}>
+                  {sealedCondition}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input
+              id="condition"
+              name="condition"
+              type="text"
+              value={condition}
+              onChange={(event) => setCondition(event.target.value)}
+              className={inputClassName}
+            />
+          )}
         </div>
 
         <div className="space-y-2">

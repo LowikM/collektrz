@@ -5,6 +5,11 @@ import { redirect } from "next/navigation";
 
 import { isCardLanguage } from "@/lib/languages";
 import { getSafeReturnPath } from "@/lib/return-path";
+import {
+  isSealedCondition,
+  isSealedProductType,
+  isValidCollectionImageUrl,
+} from "@/lib/sealed-products";
 import { createClient } from "@/lib/supabase/server";
 
 const ITEM_KINDS = ["card", "sealed"] as const;
@@ -66,6 +71,72 @@ function parseOptionalApiFields(formData: FormData, itemKind: ItemKind):
   };
 }
 
+function parseSealedFields(formData: FormData):
+  | { error: string }
+  | {
+      sealed_product_type: string;
+      image_url: string | null;
+      condition: string | null;
+    } {
+  const productName = formData.get("card_name");
+  const sealedProductType = formData.get("sealed_product_type");
+  const condition = getOptionalText(formData, "condition");
+  const imageUrl = getOptionalText(formData, "image_url");
+
+  if (typeof productName !== "string" || !productName.trim()) {
+    return { error: "Product name is required." };
+  }
+
+  if (
+    typeof sealedProductType !== "string" ||
+    !isSealedProductType(sealedProductType)
+  ) {
+    return { error: "Please select a valid product type." };
+  }
+
+  if (condition && !isSealedCondition(condition)) {
+    return { error: "Please select a valid sealed condition." };
+  }
+
+  if (imageUrl && !isValidCollectionImageUrl(imageUrl)) {
+    return {
+      error: "Image URL must be a valid http or https link.",
+    };
+  }
+
+  return {
+    sealed_product_type: sealedProductType,
+    image_url: imageUrl,
+    condition,
+  };
+}
+
+function parseCardFields(formData: FormData):
+  | { error: string }
+  | {
+      card_name: string;
+      card_ref: string;
+      condition: string | null;
+      sealed_product_type: null;
+      image_url: null;
+    } {
+  const cardName = formData.get("card_name");
+
+  if (typeof cardName !== "string" || !cardName.trim()) {
+    return { error: "Card name is required." };
+  }
+
+  const normalizedCardName = cardName.trim();
+
+  return {
+    card_name: normalizedCardName,
+    card_ref: normalizedCardName.toLowerCase(),
+    condition: getOptionalText(formData, "condition"),
+    sealed_product_type: null,
+    image_url: null,
+  };
+}
+
 function parseCollectionFields(formData: FormData):
   | { error: string }
   | {
@@ -81,18 +152,15 @@ function parseCollectionFields(formData: FormData):
         tcg_api_card_id: string | null;
         card_number: string | null;
         set_id: string | null;
+        sealed_product_type: string | null;
+        image_url: string | null;
       };
     } {
   const itemKind = formData.get("item_kind");
-  const cardName = formData.get("card_name");
   const quantityValue = formData.get("quantity");
 
   if (typeof itemKind !== "string" || !isItemKind(itemKind)) {
     return { error: "Please select a valid item kind." };
-  }
-
-  if (typeof cardName !== "string" || !cardName.trim()) {
-    return { error: "Card name is required." };
   }
 
   const quantity =
@@ -102,7 +170,6 @@ function parseCollectionFields(formData: FormData):
     return { error: "Quantity must be at least 1." };
   }
 
-  const normalizedCardName = cardName.trim();
   const languageValue = getOptionalText(formData, "language");
 
   if (languageValue && !isCardLanguage(languageValue)) {
@@ -115,16 +182,50 @@ function parseCollectionFields(formData: FormData):
     return apiFields;
   }
 
+  if (itemKind === "sealed") {
+    const sealedFields = parseSealedFields(formData);
+
+    if ("error" in sealedFields) {
+      return sealedFields;
+    }
+
+    const productName = (formData.get("card_name") as string).trim();
+
+    return {
+      data: {
+        item_kind: itemKind,
+        card_name: productName,
+        card_ref: productName.toLowerCase(),
+        set_name: getOptionalText(formData, "set_name"),
+        condition: sealedFields.condition,
+        notes: getOptionalText(formData, "notes"),
+        language: languageValue,
+        quantity,
+        sealed_product_type: sealedFields.sealed_product_type,
+        image_url: sealedFields.image_url,
+        ...apiFields,
+      },
+    };
+  }
+
+  const cardFields = parseCardFields(formData);
+
+  if ("error" in cardFields) {
+    return cardFields;
+  }
+
   return {
     data: {
       item_kind: itemKind,
-      card_name: normalizedCardName,
-      card_ref: normalizedCardName.toLowerCase(),
+      card_name: cardFields.card_name,
+      card_ref: cardFields.card_ref,
       set_name: getOptionalText(formData, "set_name"),
-      condition: getOptionalText(formData, "condition"),
+      condition: cardFields.condition,
       notes: getOptionalText(formData, "notes"),
       language: languageValue,
       quantity,
+      sealed_product_type: cardFields.sealed_product_type,
+      image_url: cardFields.image_url,
       ...apiFields,
     },
   };
