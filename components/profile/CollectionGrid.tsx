@@ -142,15 +142,18 @@ function CollectionItemCard({
             </div>
           )}
           <div className="absolute left-2 top-2 flex flex-col gap-1">
-            {!isOwnProfile ? (
-              <span className="rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-medium text-white backdrop-blur">
-                Private
+            {item.is_featured ? (
+              <span className="rounded-full bg-amber-500/90 px-2 py-0.5 text-[10px] font-medium text-white backdrop-blur">
+                Featured
               </span>
-            ) : (
-              <span className="rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-medium text-white backdrop-blur">
-                Public
-              </span>
-            )}
+            ) : null}
+            <span className="rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-medium text-white backdrop-blur">
+              {isOwnProfile
+                ? item.visibility === "public"
+                  ? "Public"
+                  : "Private"
+                : "Public"}
+            </span>
           </div>
           <div className="absolute inset-x-0 bottom-0 flex gap-2 bg-gradient-to-t from-black/75 via-black/30 to-transparent p-3 pt-10 opacity-0 transition-opacity group-hover:opacity-100">
             <span className="rounded-lg bg-white/95 px-2 py-1 text-[10px] font-medium text-zinc-800">

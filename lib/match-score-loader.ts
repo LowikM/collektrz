@@ -66,10 +66,11 @@ function groupWishlistsByUserId(
 
 /**
  * Batch-loads all data needed to score viewer ↔ collector matches at an event.
- * Avoids N+1 queries: fixed query count regardless of attendee count.
  *
- * Scaling note: practical for hundreds of attendees per event. Very large
- * events (1000+ users) may need pagination or precomputed scores later.
+ * Privacy: RLS on collection_items / wishlist_items ensures other users' private
+ * rows are not returned. Only the viewer's own full inventory is loaded for
+ * "you have for them" scoring; other users contribute public wishlist items and
+ * active event listings only.
  */
 export async function loadMatchScoreBatchContext(
   supabase: SupabaseClient,

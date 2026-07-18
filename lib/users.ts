@@ -17,6 +17,10 @@ export type PublicUserProfile = {
   created_at: string;
   is_vendor?: boolean;
   vendor_stand_number?: string | null;
+  collection_visibility?: "public" | "private";
+  wishlist_visibility?: "public" | "private";
+  show_collection_stats?: boolean;
+  show_portfolio_value?: boolean;
 };
 
 export type UserLabel = {

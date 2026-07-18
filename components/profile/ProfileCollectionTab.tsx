@@ -4,7 +4,12 @@ import { CollectionFilters, CollectionPagination } from "@/components/profile/Co
 import { CollectionGrid } from "@/components/profile/CollectionGrid";
 import { ProfileEmptyState } from "@/components/profile/ProfileEmptyState";
 import { ProfileSectionHeader } from "@/components/profile/ProfileSectionHeader";
-import { canViewProfileSection, getPrivateSectionMessage } from "@/lib/profile-privacy";
+import {
+  getCollectionSectionState,
+  getEmptySectionMessage,
+  getNoPublicItemsMessage,
+  getPrivateSectionMessage,
+} from "@/lib/profile-privacy";
 import type { ProfilePageData } from "@/lib/profile";
 import { getUserDisplayLabel } from "@/lib/users";
 
@@ -25,14 +30,17 @@ export function ProfileCollectionTab({
   userId,
   filters,
 }: ProfileCollectionTabProps) {
-  const canCollection = canViewProfileSection("collection", data.visibility);
   const displayName = getUserDisplayLabel(data.user);
+  const sectionState = getCollectionSectionState(data.visibility, {
+    totalItemsForViewer: data.collectionTotal,
+    isOwner: data.isOwnProfile,
+  });
   const totalPages = Math.max(
     1,
     Math.ceil(data.collectionTotal / data.collectionPageSize),
   );
 
-  if (!canCollection) {
+  if (sectionState === "private") {
     return (
       <ProfileEmptyState
         title="Private collection"
@@ -48,7 +56,11 @@ export function ProfileCollectionTab({
     <div className="space-y-4">
       <ProfileSectionHeader
         title="Collection showcase"
-        description={`Browse ${displayName}'s cards and sealed products.`}
+        description={
+          data.isOwnProfile
+            ? "Manage which items are public on your collector profile."
+            : `Browse public cards and sealed products shared by ${displayName}.`
+        }
         actionLabel={data.isOwnProfile ? "Manage collection" : undefined}
         actionHref={data.isOwnProfile ? "/my-collection" : undefined}
       />
@@ -64,7 +76,7 @@ export function ProfileCollectionTab({
         </Suspense>
 
         <div>
-          {data.collectionItems.length > 0 ? (
+          {sectionState === "visible" ? (
             <>
               <CollectionGrid
                 items={data.collectionItems}
@@ -81,10 +93,18 @@ export function ProfileCollectionTab({
             </>
           ) : (
             <ProfileEmptyState
-              title="Start building your collection"
-              description="Save cards and sealed products you own for faster listing and a beautiful public showcase."
-              actionLabel="Add to collection"
-              actionHref="/my-collection"
+              title={
+                sectionState === "empty"
+                  ? "Start building your collection"
+                  : "No public collection items yet"
+              }
+              description={
+                sectionState === "empty"
+                  ? getEmptySectionMessage("collection")
+                  : getNoPublicItemsMessage("collection")
+              }
+              actionLabel={data.isOwnProfile ? "Add to collection" : undefined}
+              actionHref={data.isOwnProfile ? "/my-collection" : undefined}
               icon="🃏"
             />
           )}

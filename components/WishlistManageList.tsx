@@ -10,7 +10,16 @@ import {
   deleteWishlistItem,
   updateWishlistItem,
 } from "@/app/my-wishlist/actions";
+import {
+  bulkSetWishlistVisibility,
+  setAllWishlistVisibility,
+  updateWishlistItemVisibility,
+} from "@/app/my-wishlist/privacy-actions";
 import { WISHLIST_PRIORITY_LABELS } from "@/lib/wishlist";
+import {
+  ITEM_VISIBILITY_LABELS,
+  type ItemVisibility,
+} from "@/lib/item-visibility";
 
 export type WishlistItemRow = {
   id: string;
@@ -24,6 +33,7 @@ export type WishlistItemRow = {
   set_id: string | null;
   priority: number;
   created_at: string;
+  visibility: ItemVisibility;
 };
 
 type WishlistManageListProps = {
@@ -50,6 +60,41 @@ function formatDateTime(date: string) {
     hour: "numeric",
     minute: "2-digit",
   });
+}
+
+function WishlistPrivacyMenu({ item }: { item: WishlistItemRow }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        className="rounded-lg px-2 py-1 text-sm text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-900"
+        aria-label={`Privacy options for ${item.card_name}`}
+      >
+        ⋯
+      </button>
+      {open ? (
+        <div className="absolute right-0 z-10 mt-1 w-44 rounded-xl border border-zinc-200 bg-white p-2 shadow-lg dark:border-zinc-800 dark:bg-zinc-950">
+          <form action={updateWishlistItemVisibility}>
+            <input type="hidden" name="wishlist_item_id" value={item.id} />
+            <input type="hidden" name="visibility" value="public" />
+            <button type="submit" className="block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-zinc-50 dark:hover:bg-zinc-900">
+              Make public
+            </button>
+          </form>
+          <form action={updateWishlistItemVisibility}>
+            <input type="hidden" name="wishlist_item_id" value={item.id} />
+            <input type="hidden" name="visibility" value="private" />
+            <button type="submit" className="block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-zinc-50 dark:hover:bg-zinc-900">
+              Make private
+            </button>
+          </form>
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 export function WishlistManageList({ items }: WishlistManageListProps) {
@@ -90,6 +135,20 @@ export function WishlistManageList({ items }: WishlistManageListProps) {
     );
 
     if (!confirmed) {
+      event.preventDefault();
+    }
+  }
+
+  function handleAllVisibilitySubmit(
+    event: React.FormEvent<HTMLFormElement>,
+    visibility: ItemVisibility,
+  ) {
+    const message =
+      visibility === "public"
+        ? "Make every wishlist item public? Public items may appear on your profile."
+        : "Make every wishlist item private?";
+
+    if (!window.confirm(message)) {
       event.preventDefault();
     }
   }
@@ -170,6 +229,47 @@ export function WishlistManageList({ items }: WishlistManageListProps) {
             Delete selected
           </button>
         </form>
+
+        <form action={bulkSetWishlistVisibility}>
+          {items.map((item) =>
+            selectedIds.has(item.id) ? (
+              <input key={`public-${item.id}`} type="hidden" name="wishlist_item_ids" value={item.id} />
+            ) : null,
+          )}
+          <input type="hidden" name="visibility" value="public" />
+          <button type="submit" disabled={selectedCount === 0} className={toolbarButtonClassName}>
+            Make selected public
+          </button>
+        </form>
+
+        <form action={bulkSetWishlistVisibility}>
+          {items.map((item) =>
+            selectedIds.has(item.id) ? (
+              <input key={`private-${item.id}`} type="hidden" name="wishlist_item_ids" value={item.id} />
+            ) : null,
+          )}
+          <input type="hidden" name="visibility" value="private" />
+          <button type="submit" disabled={selectedCount === 0} className={toolbarButtonClassName}>
+            Make selected private
+          </button>
+        </form>
+      </div>
+
+      <div className="flex flex-wrap gap-2 rounded-xl border border-zinc-200 p-4 dark:border-zinc-800">
+        <form action={setAllWishlistVisibility} onSubmit={(event) => handleAllVisibilitySubmit(event, "public")}>
+          <input type="hidden" name="visibility" value="public" />
+          <input type="hidden" name="confirm_all" value="yes" />
+          <button type="submit" className={toolbarButtonClassName}>
+            Make all public
+          </button>
+        </form>
+        <form action={setAllWishlistVisibility} onSubmit={(event) => handleAllVisibilitySubmit(event, "private")}>
+          <input type="hidden" name="visibility" value="private" />
+          <input type="hidden" name="confirm_all" value="yes" />
+          <button type="submit" className={toolbarButtonClassName}>
+            Make all private
+          </button>
+        </form>
       </div>
 
       <ul className="grid gap-4">
@@ -191,6 +291,9 @@ export function WishlistManageList({ items }: WishlistManageListProps) {
                     {WISHLIST_PRIORITY_LABELS[item.priority] ??
                       `Priority ${item.priority}`}
                   </span>
+                  <span className={badgeClassName}>
+                    {ITEM_VISIBILITY_LABELS[item.visibility]}
+                  </span>
                   {item.language ? (
                     <span className={badgeClassName}>{item.language}</span>
                   ) : null}
@@ -206,6 +309,7 @@ export function WishlistManageList({ items }: WishlistManageListProps) {
                   <p className="text-xs text-zinc-500 dark:text-zinc-500">
                     Added {formatDateTime(item.created_at)}
                   </p>
+                  <WishlistPrivacyMenu item={item} />
                 </div>
               </div>
 

@@ -9,7 +9,10 @@ import {
 } from "@/lib/match-score-loader";
 import {
   canViewProfileSection,
+  canViewProfileStat,
+  DEFAULT_PROFILE_PRIVACY_SETTINGS,
   isOwnProfile,
+  type ProfilePrivacySettings,
   type ProfileVisibilityContext,
 } from "@/lib/profile-privacy";
 import type { PublicUserProfile } from "@/lib/users";
@@ -34,6 +37,10 @@ const VALID_TABS: ProfileTab[] = [
 export type ProfileUser = PublicUserProfile & {
   is_vendor?: boolean;
   vendor_stand_number?: string | null;
+  collection_visibility?: ProfilePrivacySettings["collection_visibility"];
+  wishlist_visibility?: ProfilePrivacySettings["wishlist_visibility"];
+  show_collection_stats?: boolean;
+  show_portfolio_value?: boolean;
 };
 
 export type ProfileStats = {
@@ -60,6 +67,8 @@ export type ProfileCollectionItem = {
   language: string | null;
   created_at: string;
   hasTradeListing: boolean;
+  visibility: "public" | "private";
+  is_featured: boolean;
 };
 
 export type ProfileWishlistItem = {
@@ -71,6 +80,7 @@ export type ProfileWishlistItem = {
   card_number: string | null;
   priority: number;
   created_at: string;
+  visibility: "public" | "private";
 };
 
 export type ProfileListingItem = {
@@ -107,6 +117,7 @@ export type ProfileCollectionFilters = {
 export type ProfilePageData = {
   user: ProfileUser;
   visibility: ProfileVisibilityContext;
+  privacySettings: ProfilePrivacySettings;
   isOwnProfile: boolean;
   stats: ProfileStats;
   featuredCollection: ProfileCollectionItem[];
@@ -131,10 +142,10 @@ export const OVERVIEW_WISHLIST_LIMIT = 6;
 export const OVERVIEW_EVENTS_LIMIT = 6;
 
 const COLLECTION_SELECT =
-  "id, item_kind, card_name, card_ref, set_name, condition, quantity, tcg_api_card_id, card_number, set_id, image_url, sealed_product_type, language, created_at";
+  "id, item_kind, card_name, card_ref, set_name, condition, quantity, tcg_api_card_id, card_number, set_id, image_url, sealed_product_type, language, created_at, visibility, is_featured";
 
 const WISHLIST_SELECT =
-  "id, card_name, card_ref, set_name, tcg_api_card_id, card_number, priority, created_at";
+  "id, card_name, card_ref, set_name, tcg_api_card_id, card_number, priority, created_at, visibility";
 
 const LISTING_SELECT = `
   id,
@@ -211,7 +222,7 @@ async function loadProfileUser(
   const { data, error } = await supabase
     .from("users")
     .select(
-      "id, email, display_name, bio, location, favorite_pokemon, avatar_url, is_vendor, vendor_stand_number, created_at",
+      "id, email, display_name, bio, location, favorite_pokemon, avatar_url, is_vendor, vendor_stand_number, created_at, collection_visibility, wishlist_visibility, show_collection_stats, show_portfolio_value",
     )
     .eq("id", userId)
     .maybeSingle();
@@ -223,13 +234,30 @@ async function loadProfileUser(
   return data as ProfileUser;
 }
 
+function getProfilePrivacySettings(user: ProfileUser): ProfilePrivacySettings {
+  return {
+    collection_visibility:
+      user.collection_visibility ??
+      DEFAULT_PROFILE_PRIVACY_SETTINGS.collection_visibility,
+    wishlist_visibility:
+      user.wishlist_visibility ??
+      DEFAULT_PROFILE_PRIVACY_SETTINGS.wishlist_visibility,
+    show_collection_stats:
+      user.show_collection_stats ??
+      DEFAULT_PROFILE_PRIVACY_SETTINGS.show_collection_stats,
+    show_portfolio_value:
+      user.show_portfolio_value ??
+      DEFAULT_PROFILE_PRIVACY_SETTINGS.show_portfolio_value,
+  };
+}
+
 async function loadProfileStats(
   supabase: SupabaseClient,
   userId: string,
   visibility: ProfileVisibilityContext,
 ): Promise<ProfileStats> {
-  const canCollection = canViewProfileSection("collection", visibility);
-  const canWishlist = canViewProfileSection("wishlist", visibility);
+  const canCollectionStat = canViewProfileStat("collection", visibility);
+  const canWishlistStat = canViewProfileStat("wishlist", visibility);
 
   const [
     collectionResult,
@@ -238,13 +266,13 @@ async function loadProfileStats(
     completedResult,
     eventsResult,
   ] = await Promise.all([
-    canCollection
+    canCollectionStat
       ? supabase
           .from("collection_items")
           .select("id", { count: "exact", head: true })
           .eq("user_id", userId)
       : Promise.resolve({ count: null }),
-    canWishlist
+    canWishlistStat
       ? supabase
           .from("wishlist_items")
           .select("id", { count: "exact", head: true })
@@ -319,7 +347,53 @@ function enrichCollectionItems(
     language: (row.language as string | null) ?? null,
     created_at: row.created_at as string,
     hasTradeListing: tradeIds.has(row.id as string),
+    visibility: (row.visibility as ProfileCollectionItem["visibility"]) ?? "private",
+    is_featured: Boolean(row.is_featured),
   }));
+}
+
+async function loadFeaturedCollectionItems(
+  supabase: SupabaseClient,
+  userId: string,
+  visibility: ProfileVisibilityContext,
+): Promise<ProfileCollectionItem[]> {
+  if (!canViewProfileSection("collection", visibility)) {
+    return [];
+  }
+
+  const own = isOwnProfile(visibility);
+
+  let query = supabase
+    .from("collection_items")
+    .select(COLLECTION_SELECT)
+    .eq("user_id", userId)
+    .eq("is_featured", true)
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: true })
+    .limit(FEATURED_COLLECTION_LIMIT);
+
+  if (!own) {
+    query = query.eq("visibility", "public");
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    return [];
+  }
+
+  const rows = (data ?? []).filter((row) =>
+    own ? true : row.visibility === "public",
+  );
+  const tradeIds = await loadTradeListingCollectionIds(
+    supabase,
+    userId,
+    rows.map((row) => row.id),
+  );
+
+  return enrichCollectionItems(rows, tradeIds).filter((item) =>
+    own ? item.is_featured : item.is_featured && item.visibility === "public",
+  );
 }
 
 async function loadCollectionItems(
@@ -409,7 +483,10 @@ async function loadWishlistItems(
   }
 
   const { data } = await query;
-  return (data ?? []) as ProfileWishlistItem[];
+  return (data ?? []).map((row) => ({
+    ...(row as ProfileWishlistItem),
+    visibility: (row.visibility as ProfileWishlistItem["visibility"]) ?? "private",
+  }));
 }
 
 async function loadListingItems(
@@ -559,9 +636,11 @@ export async function loadProfilePageData(
     return null;
   }
 
+  const privacySettings = getProfilePrivacySettings(user);
   const visibility: ProfileVisibilityContext = {
     viewerId: viewerUserId,
     ownerId: targetUserId,
+    settings: privacySettings,
   };
   const own = isOwnProfile(visibility);
   const activeTab = options?.activeTab ?? "overview";
@@ -570,8 +649,7 @@ export async function loadProfilePageData(
   const stats = await loadProfileStats(supabase, targetUserId, visibility);
 
   const needsFullCollection = activeTab === "collection";
-  const needsFeatured =
-    activeTab === "overview" || activeTab === "collection";
+  const needsFeatured = activeTab === "overview";
 
   const [
     featuredResult,
@@ -585,12 +663,7 @@ export async function loadProfilePageData(
     matchEventId,
   ] = await Promise.all([
     needsFeatured
-      ? loadCollectionItems(
-          supabase,
-          targetUserId,
-          { sort: "newest", page: 1 },
-          visibility,
-        ).then((result) => result.items.slice(0, FEATURED_COLLECTION_LIMIT))
+      ? loadFeaturedCollectionItems(supabase, targetUserId, visibility)
       : Promise.resolve([]),
     needsFullCollection
       ? loadCollectionItems(
@@ -644,6 +717,7 @@ export async function loadProfilePageData(
   return {
     user,
     visibility,
+    privacySettings,
     isOwnProfile: own,
     stats,
     featuredCollection: featuredResult,

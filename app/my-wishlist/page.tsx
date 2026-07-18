@@ -18,6 +18,7 @@ type WishlistItem = {
   priority: number;
   created_at: string;
   updated_at: string;
+  visibility: "public" | "private";
 };
 
 export default async function MyWishlistPage({
@@ -27,9 +28,17 @@ export default async function MyWishlistPage({
     error?: string;
     deleted?: string;
     priorityUpdated?: string;
+    visibilityUpdated?: string;
+    allVisibilityUpdated?: string;
   }>;
 }) {
-  const { error: pageError, deleted, priorityUpdated } = await searchParams;
+  const {
+    error: pageError,
+    deleted,
+    priorityUpdated,
+    visibilityUpdated,
+    allVisibilityUpdated,
+  } = await searchParams;
   const supabase = await createClient();
   const {
     data: { user },
@@ -42,7 +51,7 @@ export default async function MyWishlistPage({
   const { data, error } = await supabase
     .from("wishlist_items")
     .select(
-      "id, card_name, card_ref, set_name, language, notes, tcg_api_card_id, card_number, set_id, priority, created_at, updated_at",
+      "id, card_name, card_ref, set_name, language, notes, tcg_api_card_id, card_number, set_id, priority, created_at, updated_at, visibility",
     )
     .eq("user_id", user.id)
     .order("priority", { ascending: true })
@@ -86,6 +95,25 @@ export default async function MyWishlistPage({
           >
             Updated priority for {priorityUpdated} wishlist item
             {priorityUpdated === "1" ? "" : "s"}.
+          </p>
+        ) : null}
+
+        {visibilityUpdated ? (
+          <p
+            className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800 dark:border-green-900 dark:bg-green-950 dark:text-green-300"
+            role="status"
+          >
+            Updated visibility for {visibilityUpdated} wishlist item
+            {visibilityUpdated === "1" ? "" : "s"}.
+          </p>
+        ) : null}
+
+        {allVisibilityUpdated ? (
+          <p
+            className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800 dark:border-green-900 dark:bg-green-950 dark:text-green-300"
+            role="status"
+          >
+            Updated visibility for all wishlist items.
           </p>
         ) : null}
 

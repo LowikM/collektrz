@@ -10,7 +10,7 @@ import {
   profilePrimaryButtonClassName,
   profileSecondaryButtonClassName,
 } from "@/components/profile/profile-styles";
-import { canViewProfileStat } from "@/lib/profile-privacy";
+import { canViewProfileStat, canViewPortfolioValue } from "@/lib/profile-privacy";
 import type { MatchScoreResult } from "@/lib/match-score";
 import type { ProfileStats, ProfileUser } from "@/lib/profile";
 import type { ProfileVisibilityContext } from "@/lib/profile-privacy";
@@ -177,7 +177,11 @@ export function ProfileHero({
         <ProfileStatCard
           label="Portfolio value"
           value="—"
-          hint="Coming soon"
+          hint={
+            canViewPortfolioValue(visibility)
+              ? "Coming soon"
+              : "Hidden on public profile"
+          }
           future
         />
         <ProfileStatCard

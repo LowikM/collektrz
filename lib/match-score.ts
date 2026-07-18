@@ -1,14 +1,14 @@
 /**
- * Match Score v1 — transparent collector-to-collector scoring.
+ * Match Score privacy (Profile Privacy v1):
  *
- * Data sources (all existing Supabase tables, server-side only):
- * - wishlist_items: permanent want list (card_ref, tcg_api_card_id, set_name)
- * - listings: active event listings (want / trade / sale)
- * - collection_items: tradable owned cards (item_kind = card)
- * - event_attendees: attendance and check-in flags
- *
- * Not used: listing_interests (expression of interest, not ownership/want),
- * AI, or external services.
+ * - Other collectors' private collection/wishlist rows are never loaded
+ *   (enforced by Supabase RLS). Match scoring only sees public wishlist items
+ *   for other users, plus public event listings.
+ * - The viewer's own collection is used for "you have for them" matches and
+ *   is only rendered back to that same viewer.
+ * - Match reasons never claim ownership from hidden inventory (e.g. no
+ *   "They own X" copy). Listing-based overlaps remain explicit.
+ * - Private inventory does not affect scores shown to other collectors.
  */
 
 export type MatchScoreItem = {

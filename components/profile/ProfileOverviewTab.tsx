@@ -5,7 +5,15 @@ import { ProfileEmptyState } from "@/components/profile/ProfileEmptyState";
 import { ProfileSectionHeader } from "@/components/profile/ProfileSectionHeader";
 import { ProfileStatCard } from "@/components/profile/ProfileStatCard";
 import { profilePanelClassName } from "@/components/profile/profile-styles";
-import { canViewProfileSection } from "@/lib/profile-privacy";
+import {
+  canViewProfileStat,
+  getFeaturedSectionState,
+  getNoFeaturedMessage,
+  getNoPublicItemsMessage,
+  getPrivateSectionMessage,
+  getWishlistSectionState,
+  getEmptySectionMessage,
+} from "@/lib/profile-privacy";
 import type { ProfilePageData } from "@/lib/profile";
 import { getUserDisplayLabel } from "@/lib/users";
 import { getListingThumbnailUrl } from "@/lib/collection-items";
@@ -36,8 +44,14 @@ export async function ProfileOverviewTab({
   cardImagesById,
   userId,
 }: ProfileOverviewTabProps) {
-  const canCollection = canViewProfileSection("collection", data.visibility);
-  const canWishlist = canViewProfileSection("wishlist", data.visibility);
+  const featuredState = getFeaturedSectionState(
+    data.visibility,
+    data.featuredCollection.length,
+  );
+  const wishlistState = getWishlistSectionState(data.visibility, {
+    totalItemsForViewer: data.wishlistHighlights.length,
+    isOwner: data.isOwnProfile,
+  });
   const displayName = getUserDisplayLabel(data.user);
 
   return (
@@ -49,7 +63,7 @@ export async function ProfileOverviewTab({
           actionLabel="View all"
           actionHref={`/users/${userId}?tab=collection`}
         />
-        {canCollection && data.featuredCollection.length > 0 ? (
+        {featuredState === "visible" ? (
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
             {data.featuredCollection.map((item) => (
               <FeaturedCard
@@ -76,14 +90,20 @@ export async function ProfileOverviewTab({
         ) : (
           <ProfileEmptyState
             title={
-              canCollection ? "No featured cards yet." : "Collection is private"
+              featuredState === "private"
+                ? "Collection is private"
+                : featuredState === "empty"
+                  ? "No featured cards yet"
+                  : "No featured cards selected"
             }
             description={
-              canCollection
-                ? "Add cards to your collection and the newest pieces will appear here."
-                : "This collector has not shared their collection publicly yet."
+              featuredState === "private"
+                ? getPrivateSectionMessage("collection")
+                : featuredState === "empty"
+                  ? getNoFeaturedMessage(true)
+                  : getNoFeaturedMessage(data.isOwnProfile)
             }
-            actionLabel={data.isOwnProfile ? "Start building your collection" : undefined}
+            actionLabel={data.isOwnProfile ? "Manage collection" : undefined}
             actionHref={data.isOwnProfile ? "/my-collection" : undefined}
             icon="🃏"
           />
@@ -134,7 +154,7 @@ export async function ProfileOverviewTab({
           actionLabel="View wishlist"
           actionHref={`/users/${userId}?tab=wishlist`}
         />
-        {canWishlist && data.wishlistHighlights.length > 0 ? (
+        {wishlistState === "visible" ? (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {data.wishlistHighlights.map((item) => (
               <FeaturedCard
@@ -156,12 +176,18 @@ export async function ProfileOverviewTab({
         ) : (
           <ProfileEmptyState
             title={
-              canWishlist ? "Wishlist is empty" : "Wishlist is private"
+              wishlistState === "private"
+                ? "Wishlist not shared"
+                : wishlistState === "empty"
+                  ? "Wishlist is empty"
+                  : "No public wishlist items yet"
             }
             description={
-              canWishlist
-                ? "Add cards to your wishlist so other collectors know what you are looking for."
-                : "This collector keeps their wishlist private."
+              wishlistState === "private"
+                ? getPrivateSectionMessage("wishlist")
+                : wishlistState === "empty"
+                  ? getEmptySectionMessage("wishlist")
+                  : getNoPublicItemsMessage("wishlist")
             }
             actionLabel={data.isOwnProfile ? "Add cards to your wishlist" : undefined}
             actionHref={data.isOwnProfile ? "/my-wishlist" : undefined}
@@ -221,8 +247,22 @@ export async function ProfileOverviewTab({
       <section className="space-y-4">
         <ProfileSectionHeader title="Collector stats" />
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-          <ProfileStatCard label="Collection" value={data.stats.collectionCount ?? "—"} />
-          <ProfileStatCard label="Wishlist" value={data.stats.wishlistCount ?? "—"} />
+          <ProfileStatCard
+            label="Collection"
+            value={
+              canViewProfileStat("collection", data.visibility)
+                ? (data.stats.collectionCount ?? "—")
+                : "—"
+            }
+          />
+          <ProfileStatCard
+            label="Wishlist"
+            value={
+              canViewProfileStat("wishlist", data.visibility)
+                ? (data.stats.wishlistCount ?? "—")
+                : "—"
+            }
+          />
           <ProfileStatCard label="Listings" value={data.stats.listingsCount} />
           <ProfileStatCard label="Completed trades" value={data.stats.completedTradesCount} />
           <ProfileStatCard label="Events attended" value={data.stats.eventsAttendedCount} />

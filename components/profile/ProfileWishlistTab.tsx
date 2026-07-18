@@ -1,7 +1,12 @@
 import { FeaturedCard } from "@/components/profile/FeaturedCard";
 import { ProfileEmptyState } from "@/components/profile/ProfileEmptyState";
 import { ProfileSectionHeader } from "@/components/profile/ProfileSectionHeader";
-import { canViewProfileSection, getPrivateSectionMessage } from "@/lib/profile-privacy";
+import {
+  getEmptySectionMessage,
+  getNoPublicItemsMessage,
+  getPrivateSectionMessage,
+  getWishlistSectionState,
+} from "@/lib/profile-privacy";
 import type { ProfilePageData } from "@/lib/profile";
 
 type ProfileWishlistTabProps = {
@@ -15,12 +20,15 @@ export function ProfileWishlistTab({
   cardImagesById,
   userId,
 }: ProfileWishlistTabProps) {
-  const canWishlist = canViewProfileSection("wishlist", data.visibility);
+  const sectionState = getWishlistSectionState(data.visibility, {
+    totalItemsForViewer: data.wishlistItems.length,
+    isOwner: data.isOwnProfile,
+  });
 
-  if (!canWishlist) {
+  if (sectionState === "private") {
     return (
       <ProfileEmptyState
-        title="Private wishlist"
+        title="Wishlist not shared"
         description={getPrivateSectionMessage("wishlist")}
         actionLabel="Start chat"
         actionHref={`/messages?with=${userId}`}
@@ -38,7 +46,7 @@ export function ProfileWishlistTab({
         actionHref={data.isOwnProfile ? "/my-wishlist" : undefined}
       />
 
-      {data.wishlistItems.length > 0 ? (
+      {sectionState === "visible" ? (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
           {data.wishlistItems.map((item) => (
             <FeaturedCard
@@ -59,10 +67,18 @@ export function ProfileWishlistTab({
         </div>
       ) : (
         <ProfileEmptyState
-          title="Wishlist is empty"
-          description="Add cards you want to collect and activate them at events."
-          actionLabel="Add cards to your wishlist"
-          actionHref="/my-wishlist"
+          title={
+            sectionState === "empty"
+              ? "Wishlist is empty"
+              : "No public wishlist items yet"
+          }
+          description={
+            sectionState === "empty"
+              ? getEmptySectionMessage("wishlist")
+              : getNoPublicItemsMessage("wishlist")
+          }
+          actionLabel={data.isOwnProfile ? "Add cards to your wishlist" : undefined}
+          actionHref={data.isOwnProfile ? "/my-wishlist" : undefined}
           icon="⭐"
         />
       )}
