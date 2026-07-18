@@ -1,12 +1,22 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import {
+  isMissingColumnError,
+  logDatabaseError,
+} from "@/lib/db-errors";
+import {
   calculateCollectorMatchScore,
   type MatchScoreResult,
 } from "@/lib/match-score";
 import {
   loadMatchScoreBatchContext,
 } from "@/lib/match-score-loader";
+import {
+  applyCollectionPrivacyDefaults,
+  applyWishlistPrivacyDefaults,
+  USER_PROFILE_BASE_SELECT,
+  USER_PROFILE_PRIVACY_SELECT,
+} from "@/lib/privacy-schema-queries";
 import {
   canViewProfileSection,
   canViewProfileStat,
@@ -144,8 +154,14 @@ export const OVERVIEW_EVENTS_LIMIT = 6;
 const COLLECTION_SELECT =
   "id, item_kind, card_name, card_ref, set_name, condition, quantity, tcg_api_card_id, card_number, set_id, image_url, sealed_product_type, language, created_at, visibility, is_featured";
 
+const COLLECTION_SELECT_LEGACY =
+  "id, item_kind, card_name, card_ref, set_name, condition, quantity, tcg_api_card_id, card_number, set_id, image_url, sealed_product_type, language, created_at";
+
 const WISHLIST_SELECT =
   "id, card_name, card_ref, set_name, tcg_api_card_id, card_number, priority, created_at, visibility";
+
+const WISHLIST_SELECT_LEGACY =
+  "id, card_name, card_ref, set_name, tcg_api_card_id, card_number, priority, created_at";
 
 const LISTING_SELECT = `
   id,
@@ -219,19 +235,41 @@ async function loadProfileUser(
   supabase: SupabaseClient,
   userId: string,
 ): Promise<ProfileUser | null> {
+  const fullSelect = `${USER_PROFILE_BASE_SELECT}, is_vendor, vendor_stand_number, ${USER_PROFILE_PRIVACY_SELECT}`;
   const { data, error } = await supabase
     .from("users")
-    .select(
-      "id, email, display_name, bio, location, favorite_pokemon, avatar_url, is_vendor, vendor_stand_number, created_at, collection_visibility, wishlist_visibility, show_collection_stats, show_portfolio_value",
-    )
+    .select(fullSelect)
     .eq("id", userId)
     .maybeSingle();
 
-  if (error || !data) {
-    return null;
+  if (!error && data) {
+    return data as ProfileUser;
   }
 
-  return data as ProfileUser;
+  if (error && isMissingColumnError(error)) {
+    logDatabaseError("profile.public-user", error, { userId });
+
+    const legacy = await supabase
+      .from("users")
+      .select(`${USER_PROFILE_BASE_SELECT}, is_vendor, vendor_stand_number`)
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (legacy.error || !legacy.data) {
+      return null;
+    }
+
+    return {
+      ...(legacy.data as ProfileUser),
+      ...DEFAULT_PROFILE_PRIVACY_SETTINGS,
+    };
+  }
+
+  if (error) {
+    logDatabaseError("profile.public-user", error, { userId });
+  }
+
+  return null;
 }
 
 function getProfilePrivacySettings(user: ProfileUser): ProfilePrivacySettings {
@@ -378,20 +416,47 @@ async function loadFeaturedCollectionItems(
 
   const { data, error } = await query;
 
-  if (error) {
+  let rows: Array<Record<string, unknown>>;
+
+  if (!error) {
+    rows = (data ?? []) as Array<Record<string, unknown>>;
+  } else if (isMissingColumnError(error)) {
+    logDatabaseError("profile.featured-collection", error, { userId });
+
+    const legacyQuery = supabase
+      .from("collection_items")
+      .select(COLLECTION_SELECT_LEGACY)
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: true })
+      .limit(FEATURED_COLLECTION_LIMIT);
+
+    const legacy = await legacyQuery;
+    if (legacy.error) {
+      logDatabaseError("profile.featured-collection-legacy", legacy.error, {
+        userId,
+      });
+      return [];
+    }
+
+    rows = applyCollectionPrivacyDefaults(
+      legacy.data ?? [],
+    ) as Array<Record<string, unknown>>;
+  } else {
+    logDatabaseError("profile.featured-collection", error, { userId });
     return [];
   }
 
-  const rows = (data ?? []).filter((row) =>
+  const filteredRows = rows.filter((row) =>
     own ? true : row.visibility === "public",
   );
   const tradeIds = await loadTradeListingCollectionIds(
     supabase,
     userId,
-    rows.map((row) => row.id),
+    filteredRows.map((row) => row.id as string),
   );
 
-  return enrichCollectionItems(rows, tradeIds).filter((item) =>
+  return enrichCollectionItems(filteredRows, tradeIds).filter((item) =>
     own ? item.is_featured : item.is_featured && item.visibility === "public",
   );
 }
@@ -444,15 +509,76 @@ async function loadCollectionItems(
 
   const { data, count, error } = await query.range(from, to);
 
-  if (error) {
+  let rows: Array<Record<string, unknown>>;
+
+  if (!error) {
+    rows = (data ?? []) as Array<Record<string, unknown>>;
+  } else if (isMissingColumnError(error)) {
+    logDatabaseError("profile.collection-items", error, { userId });
+
+    let legacyQuery = supabase
+      .from("collection_items")
+      .select(COLLECTION_SELECT_LEGACY, { count: "exact" })
+      .eq("user_id", userId);
+
+    if (options.kind === "card") {
+      legacyQuery = legacyQuery.eq("item_kind", "card");
+    } else if (options.kind === "sealed") {
+      legacyQuery = legacyQuery.eq("item_kind", "sealed");
+    }
+
+    if (options.q?.trim()) {
+      legacyQuery = legacyQuery.ilike("card_name", `%${options.q.trim()}%`);
+    }
+
+    switch (options.sort) {
+      case "oldest":
+        legacyQuery = legacyQuery.order("created_at", { ascending: true });
+        break;
+      case "alphabetical":
+        legacyQuery = legacyQuery.order("card_name", { ascending: true });
+        break;
+      case "quantity":
+        legacyQuery = legacyQuery.order("quantity", { ascending: false });
+        break;
+      case "recently_added":
+      case "newest":
+      default:
+        legacyQuery = legacyQuery.order("created_at", { ascending: false });
+        break;
+    }
+
+    const legacy = await legacyQuery.range(from, to);
+    if (legacy.error) {
+      logDatabaseError("profile.collection-items-legacy", legacy.error, {
+        userId,
+      });
+      return { items: [], total: 0 };
+    }
+
+    rows = applyCollectionPrivacyDefaults(
+      legacy.data ?? [],
+    ) as Array<Record<string, unknown>>;
+
+    const tradeIds = await loadTradeListingCollectionIds(
+      supabase,
+      userId,
+      rows.map((row) => row.id as string),
+    );
+
+    return {
+      items: enrichCollectionItems(rows, tradeIds),
+      total: legacy.count ?? 0,
+    };
+  } else {
+    logDatabaseError("profile.collection-items", error, { userId });
     return { items: [], total: 0 };
   }
 
-  const rows = data ?? [];
   const tradeIds = await loadTradeListingCollectionIds(
     supabase,
     userId,
-    rows.map((row) => row.id),
+    rows.map((row) => row.id as string),
   );
 
   return {
@@ -482,11 +608,46 @@ async function loadWishlistItems(
     query = query.limit(limit);
   }
 
-  const { data } = await query;
-  return (data ?? []).map((row) => ({
-    ...(row as ProfileWishlistItem),
-    visibility: (row.visibility as ProfileWishlistItem["visibility"]) ?? "private",
-  }));
+  const { data, error } = await query;
+
+  if (!error) {
+    return (data ?? []).map((row) => ({
+      ...(row as ProfileWishlistItem),
+      visibility:
+        (row.visibility as ProfileWishlistItem["visibility"]) ?? "private",
+    }));
+  }
+
+  if (isMissingColumnError(error)) {
+    logDatabaseError("profile.wishlist-items", error, { userId });
+
+    let legacyQuery = supabase
+      .from("wishlist_items")
+      .select(WISHLIST_SELECT_LEGACY)
+      .eq("user_id", userId)
+      .order("priority", { ascending: true })
+      .order("created_at", { ascending: false });
+
+    if (limit) {
+      legacyQuery = legacyQuery.limit(limit);
+    }
+
+    const legacy = await legacyQuery;
+    if (legacy.error) {
+      logDatabaseError("profile.wishlist-items-legacy", legacy.error, {
+        userId,
+      });
+      return [];
+    }
+
+    return applyWishlistPrivacyDefaults(legacy.data ?? []).map((row) => ({
+      ...(row as ProfileWishlistItem),
+      visibility: row.visibility,
+    }));
+  }
+
+  logDatabaseError("profile.wishlist-items", error, { userId });
+  return [];
 }
 
 async function loadListingItems(

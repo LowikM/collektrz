@@ -1,6 +1,16 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import {
+  getUserFacingLoadError,
+  isMissingColumnError,
+  logDatabaseError,
+} from "@/lib/db-errors";
+import {
+  applyCollectionPrivacyDefaults,
+  COLLECTION_ITEM_BASE_SELECT,
+  COLLECTION_ITEM_PRIVACY_SELECT,
+} from "@/lib/privacy-schema-queries";
+import {
   getItemUniqueKey,
   hasRepresentativeImage,
   isGradedCondition,
@@ -104,8 +114,21 @@ export type PortfolioData = {
   valueExtensionReady: boolean;
 };
 
-export const PORTFOLIO_SELECT =
-  "id, item_kind, card_name, card_ref, set_name, condition, notes, quantity, tcg_api_card_id, card_number, image_url, sealed_product_type, visibility, is_featured, created_at";
+export const PORTFOLIO_SELECT = `${COLLECTION_ITEM_BASE_SELECT}, ${COLLECTION_ITEM_PRIVACY_SELECT}`;
+
+export const PORTFOLIO_SELECT_LEGACY = COLLECTION_ITEM_BASE_SELECT;
+
+export type PortfolioLoadResult =
+  | {
+      ok: true;
+      data: PortfolioData;
+      schemaDrift: boolean;
+    }
+  | {
+      ok: false;
+      userMessage: string;
+      schemaDrift: boolean;
+    };
 
 export const PORTFOLIO_TOP_SETS_LIMIT = 8;
 export const PORTFOLIO_RECENT_LIMIT = 8;
@@ -120,16 +143,24 @@ export async function loadPortfolioData(
   supabase: SupabaseClient,
   userId: string,
 ): Promise<PortfolioData> {
+  const result = await loadPortfolioDataSafe(supabase, userId);
+  if (!result.ok) {
+    throw new Error(result.userMessage);
+  }
+
+  return result.data;
+}
+
+export async function loadPortfolioDataSafe(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<PortfolioLoadResult> {
   const [
-    { data: rows, error },
-    { count: wishlistCount },
-    { count: activeListingsCount },
+    collectionResult,
+    { count: wishlistCount, error: wishlistCountError },
+    { count: activeListingsCount, error: listingsCountError },
   ] = await Promise.all([
-    supabase
-      .from("collection_items")
-      .select(PORTFOLIO_SELECT)
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false }),
+    loadPortfolioCollectionRows(supabase, userId),
     supabase
       .from("wishlist_items")
       .select("id", { count: "exact", head: true })
@@ -141,12 +172,95 @@ export async function loadPortfolioData(
       .eq("status", "active"),
   ]);
 
-  if (error) {
-    throw error;
+  if (!collectionResult.ok) {
+    return {
+      ok: false,
+      userMessage: collectionResult.userMessage,
+      schemaDrift: collectionResult.schemaDrift,
+    };
   }
 
-  const items = (rows ?? []) as PortfolioCollectionRow[];
-  return buildPortfolioData(items, wishlistCount ?? 0, activeListingsCount ?? 0);
+  if (wishlistCountError && !isMissingColumnError(wishlistCountError)) {
+    logDatabaseError("portfolio.wishlist-count", wishlistCountError, { userId });
+  }
+
+  if (listingsCountError) {
+    logDatabaseError("portfolio.listings-count", listingsCountError, { userId });
+  }
+
+  return {
+    ok: true,
+    schemaDrift: collectionResult.schemaDrift,
+    data: buildPortfolioData(
+      collectionResult.rows,
+      wishlistCount ?? 0,
+      activeListingsCount ?? 0,
+    ),
+  };
+}
+
+async function loadPortfolioCollectionRows(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<
+  | {
+      ok: true;
+      rows: PortfolioCollectionRow[];
+      schemaDrift: boolean;
+    }
+  | {
+      ok: false;
+      userMessage: string;
+      schemaDrift: boolean;
+    }
+> {
+  const full = await supabase
+    .from("collection_items")
+    .select(PORTFOLIO_SELECT)
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
+
+  if (!full.error) {
+    return {
+      ok: true,
+      rows: (full.data ?? []) as PortfolioCollectionRow[],
+      schemaDrift: false,
+    };
+  }
+
+  if (isMissingColumnError(full.error)) {
+    logDatabaseError("portfolio.collection-items", full.error, { userId });
+
+    const legacy = await supabase
+      .from("collection_items")
+      .select(PORTFOLIO_SELECT_LEGACY)
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false });
+
+    if (legacy.error) {
+      logDatabaseError("portfolio.collection-items-legacy", legacy.error, { userId });
+      return {
+        ok: false,
+        userMessage: getUserFacingLoadError("portfolio", legacy.error),
+        schemaDrift: true,
+      };
+    }
+
+    return {
+      ok: true,
+      rows: applyCollectionPrivacyDefaults(
+        legacy.data ?? [],
+      ) as PortfolioCollectionRow[],
+      schemaDrift: true,
+    };
+  }
+
+  logDatabaseError("portfolio.collection-items", full.error, { userId });
+  return {
+    ok: false,
+    userMessage: getUserFacingLoadError("portfolio", full.error),
+    schemaDrift: false,
+  };
 }
 
 export function buildPortfolioData(

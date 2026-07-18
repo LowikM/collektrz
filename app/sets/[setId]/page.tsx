@@ -4,12 +4,13 @@ import { notFound, redirect } from "next/navigation";
 import { RecordRecentSetVisit } from "@/components/RecordRecentSetVisit";
 import { SetBrowserGrid } from "@/components/SetBrowserGrid";
 import { SetCompletionStatsPanel } from "@/components/SetCompletionStatsPanel";
+import { SetLoadErrorPanel } from "@/components/SetLoadErrorPanel";
+import { getUserFacingLoadError, logDatabaseError } from "@/lib/db-errors";
+import { formatSetReleaseDate } from "@/lib/pokemon-tcg";
 import {
-  formatSetReleaseDate,
-  getCardsForSet,
-  getSet,
-  PokemonTcgApiError,
-} from "@/lib/pokemon-tcg";
+  getSetCardsErrorMessage,
+  loadSetDetail,
+} from "@/lib/set-detail";
 import { computeSetCompletionStats } from "@/lib/set-browser";
 import { createClient } from "@/lib/supabase/server";
 
@@ -33,6 +34,19 @@ function parseCountParam(value: string | undefined) {
   return Number.isInteger(parsed) && parsed >= 0 ? parsed : 0;
 }
 
+function getSetErrorTitle(category: string) {
+  switch (category) {
+    case "not_found":
+      return "Set not found";
+    case "configuration":
+      return "Configuration missing";
+    case "timeout":
+      return "Request timed out";
+    default:
+      return "Card catalog temporarily unavailable";
+  }
+}
+
 export default async function SetDetailPage({
   params,
   searchParams,
@@ -54,41 +68,73 @@ export default async function SetDetailPage({
     redirect("/login");
   }
 
-  let set;
-  let cards;
-  let loadError: string | null = pageError ?? null;
+  const detail = await loadSetDetail(setId);
 
-  try {
-    [set, cards] = await Promise.all([getSet(setId), getCardsForSet(setId)]);
-  } catch (error) {
-    if (error instanceof PokemonTcgApiError) {
-      loadError = "This set is temporarily unavailable.";
-    } else {
-      throw error;
-    }
-  }
-
-  if (!set && !loadError) {
+  if (detail.status === "not_found") {
     notFound();
   }
 
+  if (detail.status === "error") {
+    return (
+      <div className="flex flex-1 justify-center px-4 py-12">
+        <RecordRecentSetVisit setId={setId} />
+        <div className="w-full max-w-6xl space-y-8">
+          <Link
+            href="/sets"
+            className="text-sm text-zinc-600 hover:underline dark:text-zinc-400"
+          >
+            ← Back to Set Browser
+          </Link>
+          {pageError ? (
+            <p
+              className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
+              role="alert"
+            >
+              {pageError}
+            </p>
+          ) : null}
+          <SetLoadErrorPanel
+            title={getSetErrorTitle(detail.category)}
+            message={detail.message}
+            setId={detail.requestedId}
+            retryable={detail.retryable}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  const { set, cards, cardsPartialFailure } = detail;
+
   const [{ data: collectionRows, error: collectionError }, { data: wishlistRows, error: wishlistError }] =
-    set
-      ? await Promise.all([
-          supabase
-            .from("collection_items")
-            .select("tcg_api_card_id")
-            .eq("user_id", user.id)
-            .eq("set_id", set.id)
-            .not("tcg_api_card_id", "is", null),
-          supabase
-            .from("wishlist_items")
-            .select("tcg_api_card_id")
-            .eq("user_id", user.id)
-            .eq("set_id", set.id)
-            .not("tcg_api_card_id", "is", null),
-        ])
-      : [{ data: null, error: null }, { data: null, error: null }];
+    await Promise.all([
+      supabase
+        .from("collection_items")
+        .select("tcg_api_card_id")
+        .eq("user_id", user.id)
+        .eq("set_id", set.id)
+        .not("tcg_api_card_id", "is", null),
+      supabase
+        .from("wishlist_items")
+        .select("tcg_api_card_id")
+        .eq("user_id", user.id)
+        .eq("set_id", set.id)
+        .not("tcg_api_card_id", "is", null),
+    ]);
+
+  if (collectionError) {
+    logDatabaseError("set-detail.collection-status", collectionError, {
+      userId: user.id,
+      setId: set.id,
+    });
+  }
+
+  if (wishlistError) {
+    logDatabaseError("set-detail.wishlist-status", wishlistError, {
+      userId: user.id,
+      setId: set.id,
+    });
+  }
 
   const ownedIds = (collectionRows ?? [])
     .map((row) => row.tcg_api_card_id)
@@ -104,9 +150,16 @@ export default async function SetDetailPage({
   const ownedIdSet = new Set(ownedIds);
   const wantedIdSet = new Set(wantedIds);
   const completionStats =
-    cards && cards.length > 0
+    cards.length > 0
       ? computeSetCompletionStats(cards, ownedIdSet, wantedIdSet)
       : null;
+
+  const collectionStatusError = collectionError
+    ? getUserFacingLoadError("collection", collectionError)
+    : null;
+  const wishlistStatusError = wishlistError
+    ? getUserFacingLoadError("wishlist", wishlistError)
+    : null;
 
   return (
     <div className="flex flex-1 justify-center px-4 py-12">
@@ -120,39 +173,35 @@ export default async function SetDetailPage({
             ← Back to Set Browser
           </Link>
 
-          {set ? (
-            <div className="space-y-3">
-              <div className="flex flex-wrap items-center gap-3">
-                {set.images.logo ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={set.images.logo}
-                    alt=""
-                    className="h-12 w-auto max-w-[140px] object-contain"
-                  />
-                ) : null}
-                {set.images.symbol ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={set.images.symbol}
-                    alt=""
-                    className="h-10 w-10 object-contain"
-                  />
-                ) : null}
-                <div>
-                  <h1 className="text-2xl font-semibold tracking-tight">
-                    {set.name}
-                  </h1>
-                  <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-                    {set.series || "Unknown series"} ·{" "}
-                    {formatSetReleaseDate(set.releaseDate)} · {set.total} cards
-                  </p>
-                </div>
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center gap-3">
+              {set.images.logo ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={set.images.logo}
+                  alt=""
+                  className="h-12 w-auto max-w-[140px] object-contain"
+                />
+              ) : null}
+              {set.images.symbol ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={set.images.symbol}
+                  alt=""
+                  className="h-10 w-10 object-contain"
+                />
+              ) : null}
+              <div>
+                <h1 className="text-2xl font-semibold tracking-tight">
+                  {set.name}
+                </h1>
+                <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+                  {set.series || "Unknown series"} ·{" "}
+                  {formatSetReleaseDate(set.releaseDate)} · {set.total} cards
+                </p>
               </div>
             </div>
-          ) : (
-            <h1 className="text-2xl font-semibold tracking-tight">Set</h1>
-          )}
+          </div>
         </div>
 
         {bulk === "collection" ? (
@@ -199,30 +248,47 @@ export default async function SetDetailPage({
           </p>
         ) : null}
 
-        {loadError ? (
+        {pageError ? (
           <p
             className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
             role="alert"
           >
-            {loadError}
+            {pageError}
           </p>
         ) : null}
 
-        {collectionError ? (
+        {cardsPartialFailure ? (
+          <div className="space-y-3">
+            <p
+              className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200"
+              role="alert"
+            >
+              {getSetCardsErrorMessage(cardsPartialFailure)}
+            </p>
+            <Link
+              href={`/sets/${encodeURIComponent(set.id)}`}
+              className="inline-flex min-h-11 items-center rounded-xl border border-amber-300 px-4 py-2 text-sm font-medium text-amber-900 hover:bg-amber-100 dark:border-amber-800 dark:text-amber-200 dark:hover:bg-amber-900/60"
+            >
+              Retry loading cards
+            </Link>
+          </div>
+        ) : null}
+
+        {collectionStatusError ? (
           <p
             className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
             role="alert"
           >
-            Could not load collection status: {collectionError.message}
+            {collectionStatusError}
           </p>
         ) : null}
 
-        {wishlistError ? (
+        {wishlistStatusError ? (
           <p
             className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
             role="alert"
           >
-            Could not load wishlist status: {wishlistError.message}
+            {wishlistStatusError}
           </p>
         ) : null}
 
@@ -230,7 +296,7 @@ export default async function SetDetailPage({
           <SetCompletionStatsPanel stats={completionStats} />
         ) : null}
 
-        {set && cards && cards.length === 0 ? (
+        {!cardsPartialFailure && cards.length === 0 ? (
           <div className="rounded-xl border border-dashed border-zinc-300 bg-zinc-50/50 px-6 py-14 text-center dark:border-zinc-700 dark:bg-zinc-900/20">
             <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
               No cards found for this set
@@ -242,7 +308,7 @@ export default async function SetDetailPage({
           </div>
         ) : null}
 
-        {set && cards && cards.length > 0 ? (
+        {cards.length > 0 ? (
           <SetBrowserGrid
             cards={cards}
             setId={set.id}

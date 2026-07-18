@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createWishlistItem } from "@/app/my-wishlist/actions";
 import { AddWishlistItemForm } from "@/components/AddWishlistItemForm";
 import { WishlistManageList } from "@/components/WishlistManageList";
+import { loadOwnerWishlistItems } from "@/lib/privacy-schema-queries";
 import { createClient } from "@/lib/supabase/server";
 
 type WishlistItem = {
@@ -48,16 +49,17 @@ export default async function MyWishlistPage({
     redirect("/login");
   }
 
-  const { data, error } = await supabase
-    .from("wishlist_items")
-    .select(
-      "id, card_name, card_ref, set_name, language, notes, tcg_api_card_id, card_number, set_id, priority, created_at, updated_at, visibility",
-    )
-    .eq("user_id", user.id)
-    .order("priority", { ascending: true })
-    .order("created_at", { ascending: false });
-
-  const items = (data ?? []) as WishlistItem[];
+  const wishlistLoad = await loadOwnerWishlistItems<WishlistItem>(
+    supabase,
+    user.id,
+  );
+  const items = wishlistLoad.data;
+  const loadError = wishlistLoad.userMessage;
+  const schemaDriftBanner = wishlistLoad.schemaDrift
+    ? wishlistLoad.userMessage
+    : null;
+  const fatalLoadError =
+    loadError && !wishlistLoad.schemaDrift ? loadError : null;
 
   return (
     <div className="flex flex-1 justify-center px-4 py-12">
@@ -76,6 +78,15 @@ export default async function MyWishlistPage({
             role="alert"
           >
             {pageError}
+          </p>
+        ) : null}
+
+        {schemaDriftBanner ? (
+          <p
+            className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200"
+            role="status"
+          >
+            {schemaDriftBanner}
           </p>
         ) : null}
 
@@ -117,22 +128,24 @@ export default async function MyWishlistPage({
           </p>
         ) : null}
 
-        <section className="rounded-xl border border-zinc-200 p-4 dark:border-zinc-800">
-          <h2 className="text-lg font-semibold tracking-tight">
-            Add to wishlist
-          </h2>
-          <AddWishlistItemForm action={createWishlistItem} />
-        </section>
+        {!fatalLoadError ? (
+          <section className="rounded-xl border border-zinc-200 p-4 dark:border-zinc-800">
+            <h2 className="text-lg font-semibold tracking-tight">
+              Add to wishlist
+            </h2>
+            <AddWishlistItemForm action={createWishlistItem} />
+          </section>
+        ) : null}
 
         <section className="space-y-4">
           <h2 className="text-lg font-semibold tracking-tight">Your wishlist</h2>
 
-          {error ? (
+          {fatalLoadError ? (
             <p
               className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
               role="alert"
             >
-              Could not load wishlist: {error.message}
+              {fatalLoadError}
             </p>
           ) : items.length === 0 ? (
             <p className="rounded-xl border border-dashed border-zinc-300 px-6 py-12 text-center text-sm text-zinc-600 dark:border-zinc-700 dark:text-zinc-400">

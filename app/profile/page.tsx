@@ -4,9 +4,19 @@ import { redirect } from "next/navigation";
 import { ProfileForm } from "@/components/ProfileForm";
 import { ProfilePrivacyForm } from "@/components/ProfilePrivacyForm";
 import {
+  getUserFacingLoadError,
+  isMissingColumnError,
+  logDatabaseError,
+  SCHEMA_DRIFT_BANNER,
+} from "@/lib/db-errors";
+import {
   DEFAULT_PROFILE_PRIVACY_SETTINGS,
   type ProfilePrivacySettings,
 } from "@/lib/profile-privacy";
+import {
+  USER_PROFILE_BASE_SELECT,
+  USER_PROFILE_PRIVACY_SELECT,
+} from "@/lib/privacy-schema-queries";
 import {
   formatMemberSince,
   type PublicUserProfile,
@@ -30,25 +40,74 @@ export default async function ProfilePage({
     redirect("/login");
   }
 
+  const fullSelect = `${USER_PROFILE_BASE_SELECT}, ${USER_PROFILE_PRIVACY_SELECT}`;
   const { data: profile, error: profileError } = await supabase
     .from("users")
-    .select(
-      "id, email, display_name, bio, location, favorite_pokemon, avatar_url, created_at, collection_visibility, wishlist_visibility, show_collection_stats, show_portfolio_value",
-    )
+    .select(fullSelect)
     .eq("id", user.id)
     .maybeSingle();
 
-  const userProfile = (profile ?? {
-    id: user.id,
-    email: user.email ?? "",
-    display_name: null,
-    bio: null,
-    location: null,
-    favorite_pokemon: null,
-    avatar_url: null,
-    created_at: user.created_at,
-    ...DEFAULT_PROFILE_PRIVACY_SETTINGS,
-  }) as ProfileRecord;
+  let userProfile: ProfileRecord;
+  let loadError: string | null = null;
+  let schemaDriftBanner: string | null = null;
+
+  if (!profileError && profile) {
+    userProfile = profile as ProfileRecord;
+  } else if (profileError && isMissingColumnError(profileError)) {
+    logDatabaseError("profile.load", profileError, { userId: user.id });
+
+    const { data: baseProfile, error: baseError } = await supabase
+      .from("users")
+      .select(USER_PROFILE_BASE_SELECT)
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (baseError) {
+      logDatabaseError("profile.load-base", baseError, { userId: user.id });
+      loadError = getUserFacingLoadError("profile", baseError);
+    }
+
+    userProfile = {
+      ...(baseProfile ?? {
+        id: user.id,
+        email: user.email ?? "",
+        display_name: null,
+        bio: null,
+        location: null,
+        favorite_pokemon: null,
+        avatar_url: null,
+        created_at: user.created_at,
+      }),
+      ...DEFAULT_PROFILE_PRIVACY_SETTINGS,
+    } as ProfileRecord;
+    schemaDriftBanner = SCHEMA_DRIFT_BANNER;
+  } else if (profileError) {
+    logDatabaseError("profile.load", profileError, { userId: user.id });
+    loadError = getUserFacingLoadError("profile", profileError);
+    userProfile = {
+      id: user.id,
+      email: user.email ?? "",
+      display_name: null,
+      bio: null,
+      location: null,
+      favorite_pokemon: null,
+      avatar_url: null,
+      created_at: user.created_at,
+      ...DEFAULT_PROFILE_PRIVACY_SETTINGS,
+    };
+  } else {
+    userProfile = {
+      id: user.id,
+      email: user.email ?? "",
+      display_name: null,
+      bio: null,
+      location: null,
+      favorite_pokemon: null,
+      avatar_url: null,
+      created_at: user.created_at,
+      ...DEFAULT_PROFILE_PRIVACY_SETTINGS,
+    };
+  }
 
   const privacySettings: ProfilePrivacySettings = {
     collection_visibility:
@@ -94,9 +153,15 @@ export default async function ProfilePage({
           </p>
         ) : null}
 
-        {profileError ? (
+        {loadError ? (
           <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300" role="alert">
-            Could not load profile: {profileError.message}
+            {loadError}
+          </p>
+        ) : null}
+
+        {schemaDriftBanner ? (
+          <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200" role="status">
+            {schemaDriftBanner}
           </p>
         ) : null}
 
@@ -119,11 +184,15 @@ export default async function ProfilePage({
           </div>
         </dl>
 
-        <ProfileForm profile={userProfile} />
+        {!loadError ? (
+          <>
+            <ProfileForm profile={userProfile} />
 
-        <div className="border-t border-zinc-200 pt-8 dark:border-zinc-800">
-          <ProfilePrivacyForm settings={privacySettings} />
-        </div>
+            <div className="border-t border-zinc-200 pt-8 dark:border-zinc-800">
+              <ProfilePrivacyForm settings={privacySettings} />
+            </div>
+          </>
+        ) : null}
       </div>
     </div>
   );

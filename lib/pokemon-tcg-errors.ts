@@ -30,6 +30,25 @@ export function getCardSearchUserMessage(code: PokemonTcgErrorCode | string) {
   }
 }
 
+export function getSetUserMessage(code: PokemonTcgErrorCode | string) {
+  switch (code) {
+    case "not_found":
+      return "Set not found. It may have been removed from the catalog or the link is incorrect.";
+    case "timeout":
+      return "The card catalog timed out while loading this set. Please try again.";
+    case "rate_limit":
+      return "The card catalog is busy. Please wait a moment and try again.";
+    case "authentication":
+    case "configuration":
+      return "Set lookup is not configured correctly. Contact support if this continues.";
+    case "network":
+      return "Could not reach the card catalog. Check your connection and try again.";
+    case "upstream":
+    default:
+      return "The card catalog is temporarily unavailable. Please try again.";
+  }
+}
+
 export function classifyPokemonTcgStatus(status: number): PokemonTcgErrorCode {
   if (status === 408 || status === 504) {
     return "timeout";

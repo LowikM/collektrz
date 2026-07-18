@@ -10,17 +10,17 @@ import {
 } from "@/components/CollectionManageList";
 import { CollectionViewNav } from "@/components/portfolio/CollectionViewNav";
 import { PortfolioExperience } from "@/components/portfolio/PortfolioExperience";
-import { PortfolioSkeleton } from "@/components/portfolio/PortfolioSkeleton";
 import {
   describeCollectionFilters,
   filterCollectionItems,
   hasActiveCollectionFilters,
   parseCollectionListFilters,
 } from "@/lib/collection-filters";
+import { loadOwnerCollectionItems } from "@/lib/privacy-schema-queries";
 import { getCardImagesByIds } from "@/lib/pokemon-tcg";
 import {
   collectPortfolioImageIds,
-  loadPortfolioData,
+  loadPortfolioDataSafe,
 } from "@/lib/portfolio";
 import { createClient } from "@/lib/supabase/server";
 
@@ -66,23 +66,27 @@ export default async function MyCollectionPage({
 
   const collectionFilters = parseCollectionListFilters(params);
 
-  const [{ data, error }, portfolioData] = await Promise.all([
-    supabase
-      .from("collection_items")
-      .select(
-        "id, item_kind, card_name, card_ref, set_name, condition, notes, language, tcg_api_card_id, card_number, set_id, quantity, sealed_product_type, image_url, created_at, updated_at, visibility, is_featured",
-      )
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false }),
+  const [collectionLoad, portfolioResult] = await Promise.all([
+    loadOwnerCollectionItems<ManageableCollectionItem>(supabase, user.id),
     activeView === "portfolio"
-      ? loadPortfolioData(supabase, user.id)
+      ? loadPortfolioDataSafe(supabase, user.id)
       : Promise.resolve(null),
   ]);
 
-  const allItems = (data ?? []) as ManageableCollectionItem[];
+  const allItems = collectionLoad.data;
+  const collectionLoadError = collectionLoad.userMessage;
+  const schemaDriftBanner = collectionLoad.schemaDrift
+    ? collectionLoad.userMessage
+    : null;
   const filteredItems = filterCollectionItems(allItems, collectionFilters);
   const filterDescription = describeCollectionFilters(collectionFilters);
   const showFilterBanner = hasActiveCollectionFilters(collectionFilters);
+
+  const portfolioData =
+    portfolioResult && portfolioResult.ok ? portfolioResult.data : null;
+  const portfolioLoadError =
+    portfolioResult && !portfolioResult.ok ? portfolioResult.userMessage : null;
+  const portfolioSchemaDrift = Boolean(portfolioResult?.schemaDrift);
 
   const cardImagesById =
     activeView === "portfolio" && portfolioData
@@ -91,6 +95,9 @@ export default async function MyCollectionPage({
 
   const maxWidthClass =
     activeView === "portfolio" ? "max-w-6xl" : "max-w-3xl";
+
+  const showPortfolio =
+    activeView === "portfolio" && portfolioData && !portfolioLoadError;
 
   return (
     <div className="flex flex-1 justify-center px-4 py-10 sm:py-12">
@@ -137,6 +144,25 @@ export default async function MyCollectionPage({
           </p>
         ) : null}
 
+        {schemaDriftBanner && activeView !== "portfolio" ? (
+          <p
+            className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200"
+            role="status"
+          >
+            {schemaDriftBanner}
+          </p>
+        ) : null}
+
+        {portfolioSchemaDrift && activeView === "portfolio" ? (
+          <p
+            className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200"
+            role="status"
+          >
+            Some portfolio privacy fields are temporarily unavailable while the
+            database is being updated. Your items remain private.
+          </p>
+        ) : null}
+
         {visibilityUpdated ? (
           <p
             className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800 dark:border-green-900 dark:bg-green-950 dark:text-green-300"
@@ -166,14 +192,23 @@ export default async function MyCollectionPage({
           </p>
         ) : null}
 
-        {activeView === "portfolio" && portfolioData ? (
+        {activeView === "portfolio" && portfolioLoadError ? (
+          <p
+            className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
+            role="alert"
+          >
+            {portfolioLoadError}
+          </p>
+        ) : null}
+
+        {showPortfolio ? (
           <PortfolioExperience
             data={portfolioData}
             cardImagesById={cardImagesById}
             userId={user.id}
             showAllSets={params.sets === "all"}
           />
-        ) : (
+        ) : activeView === "portfolio" && portfolioLoadError ? null : (
           <>
             <section className="rounded-xl border border-zinc-200 p-4 dark:border-zinc-800">
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -214,14 +249,14 @@ export default async function MyCollectionPage({
                 </p>
               ) : null}
 
-              {error ? (
+              {collectionLoadError && !schemaDriftBanner ? (
                 <p
                   className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
                   role="alert"
                 >
-                  Could not load collection: {error.message}
+                  {collectionLoadError}
                 </p>
-              ) : allItems.length === 0 ? (
+              ) : allItems.length === 0 && !collectionLoadError ? (
                 <p className="rounded-xl border border-dashed border-zinc-300 px-6 py-12 text-center text-sm text-zinc-600 dark:border-zinc-700 dark:text-zinc-400">
                   No items in your collection yet.
                 </p>
