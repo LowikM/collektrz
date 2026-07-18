@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { MatchScoreCard } from "@/components/matches/MatchScoreCard";
 import { SendMessageForm } from "@/components/SendMessageForm";
 import {
   ListingCardThumbnail,
@@ -20,6 +21,8 @@ import {
   loadEventVendorDetail,
   type EventRecord,
 } from "@/lib/event-experience";
+import { calculateCollectorMatchScore, collectTcgApiCardIdsFromResults } from "@/lib/match-score";
+import { loadMatchScoreBatchContext } from "@/lib/match-score-loader";
 import { getCardImagesByIds } from "@/lib/pokemon-tcg";
 import { getUserDisplayLabel } from "@/lib/users";
 import { createClient } from "@/lib/supabase/server";
@@ -75,6 +78,17 @@ export default async function EventVendorPage({ params }: EventVendorPageProps) 
 
   const displayName = getUserDisplayLabel(vendor);
   const chatHref = `/messages?with=${vendor.id}`;
+
+  let vendorMatchScore = null;
+  if (user && user.id !== vendor.id) {
+    const batchContext = await loadMatchScoreBatchContext(
+      supabase,
+      id,
+      user.id,
+      [vendor.id],
+    );
+    vendorMatchScore = calculateCollectorMatchScore(batchContext, vendor.id);
+  }
 
   return (
     <div className="flex flex-1 justify-center px-4 py-8 sm:py-12">
@@ -155,6 +169,18 @@ export default async function EventVendorPage({ params }: EventVendorPageProps) 
             </div>
           </div>
         </section>
+
+        {vendorMatchScore ? (
+          <section>
+            <MatchScoreCard
+              result={vendorMatchScore}
+              otherUserId={vendor.id}
+              otherUserName={displayName}
+              eventId={id}
+              cardImagesById={cardImagesById}
+            />
+          </section>
+        ) : null}
 
         <section className="space-y-4">
           <h2 className="text-xl font-semibold tracking-tight">Inventory</h2>

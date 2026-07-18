@@ -12,6 +12,7 @@ import type { EventCollectorProfile } from "@/lib/event-experience";
 type EventAttendeesSectionProps = {
   eventId: string;
   attendees: EventCollectorProfile[];
+  showMatchScore?: boolean;
 };
 
 /**
@@ -21,6 +22,7 @@ type EventAttendeesSectionProps = {
 export function EventAttendeesSection({
   eventId,
   attendees,
+  showMatchScore = false,
 }: EventAttendeesSectionProps) {
   const preview = attendees.slice(0, ATTENDEE_PREVIEW_LIMIT);
   const showViewAll = attendees.length > VIEW_ALL_ATTENDEES_THRESHOLD;
@@ -68,7 +70,11 @@ export function EventAttendeesSection({
       <ul className="grid gap-4 sm:grid-cols-2">
         {preview.map((collector) => (
           <li key={collector.userId}>
-            <CollectorAttendeeCard collector={collector} eventId={eventId} />
+            <CollectorAttendeeCard
+              collector={collector}
+              eventId={eventId}
+              showMatchScore={showMatchScore}
+            />
           </li>
         ))}
       </ul>

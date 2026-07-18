@@ -8,6 +8,8 @@ import {
   loadEventAttendees,
   type EventRecord,
 } from "@/lib/event-experience";
+import { collectTcgApiCardIdsFromResults } from "@/lib/match-score";
+import { getCardImagesByIds } from "@/lib/pokemon-tcg";
 import { createClient } from "@/lib/supabase/server";
 
 type EventAttendeesPageProps = {
@@ -36,6 +38,11 @@ export default async function EventAttendeesPage({
 
   const eventRecord = event as EventRecord;
   const attendees = await loadEventAttendees(supabase, id, user?.id ?? null);
+  const cardImagesById = await getCardImagesByIds(
+    collectTcgApiCardIdsFromResults(
+      attendees.map((profile) => profile.matchScoreResult),
+    ),
+  );
 
   return (
     <div className="flex flex-1 justify-center px-4 py-8 sm:py-12">
@@ -76,6 +83,7 @@ export default async function EventAttendeesPage({
                   collector={collector}
                   eventId={id}
                   showMatchScore={Boolean(user)}
+                  cardImagesById={cardImagesById}
                 />
               </li>
             ))}

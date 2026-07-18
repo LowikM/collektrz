@@ -25,9 +25,9 @@ import {
   loadEventAttendees,
   loadEventPersonalDashboard,
   loadEventPresence,
-  loadEventSocialRecommendations,
   loadEventStats,
   loadEventVendors,
+  rankEventSocialRecommendations,
   type EventRecord,
   type ListingOwnerVendor,
 } from "@/lib/event-experience";
@@ -38,6 +38,7 @@ import {
   parseListingFilters,
 } from "@/lib/listing-filters";
 import { getCardImagesByIds } from "@/lib/pokemon-tcg";
+import { collectTcgApiCardIdsFromResults } from "@/lib/match-score";
 import { createClient } from "@/lib/supabase/server";
 
 type EventDetailPageProps = {
@@ -120,7 +121,7 @@ export default async function EventDetailPage({
 
   const eventRecord = event as EventRecord;
 
-  const [stats, presence, personalDashboard, attendees, vendors, socialRecommendations] =
+  const [stats, presence, personalDashboard, attendees, vendors] =
     await Promise.all([
       loadEventStats(supabase, id),
       user ? loadEventPresence(supabase, id, user.id) : Promise.resolve(null),
@@ -129,10 +130,17 @@ export default async function EventDetailPage({
         : Promise.resolve(null),
       loadEventAttendees(supabase, id, user?.id ?? null),
       loadEventVendors(supabase, id),
-      user
-        ? loadEventSocialRecommendations(supabase, id, user.id)
-        : Promise.resolve([]),
     ]);
+
+  const socialRecommendations = user
+    ? rankEventSocialRecommendations(attendees, user.id, id)
+    : [];
+
+  const socialMatchScoreImages = await getCardImagesByIds(
+    collectTcgApiCardIdsFromResults(
+      socialRecommendations.map((profile) => profile.matchScoreResult),
+    ),
+  );
 
   let listingsQuery = supabase
     .from("listings")
@@ -239,7 +247,11 @@ export default async function EventDetailPage({
           </section>
         )}
 
-        <EventAttendeesSection eventId={id} attendees={attendees} />
+        <EventAttendeesSection
+          eventId={id}
+          attendees={attendees}
+          showMatchScore={Boolean(user)}
+        />
 
         <EventVendorsSection eventId={id} vendors={vendors} />
 
@@ -247,6 +259,7 @@ export default async function EventDetailPage({
           <EventSocialSection
             eventId={id}
             recommendations={socialRecommendations}
+            cardImagesById={socialMatchScoreImages}
           />
         ) : null}
 

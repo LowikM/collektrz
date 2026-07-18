@@ -5,6 +5,15 @@ import {
   type MatchUser,
   type UserTradeMatch,
 } from "@/lib/listing-matches";
+import {
+  compareMatchScores,
+  emptyMatchScore,
+  type MatchScoreResult,
+} from "@/lib/match-score";
+import {
+  loadMatchScoreBatchContext,
+  scoreCollectorsAtEvent,
+} from "@/lib/match-score-loader";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type EventRecord = {
@@ -307,9 +316,11 @@ export type EventCollectorProfile = {
   isCurrentlyAtEvent: boolean;
   listingCount: number;
   wishlistCount: number;
-  /** 0–100 when computed for a viewer; null otherwise. Ready for Match Score v2. */
+  /** Centralized Match Score result when a viewer is logged in. */
+  matchScoreResult: MatchScoreResult | null;
+  /** @deprecated Use matchScoreResult.score */
   matchScore: number | null;
-  /** Simple reason string for social recommendations. */
+  /** @deprecated Use matchScoreResult.reasons */
   matchReason: string | null;
   /** Placeholder for future collector levels. */
   collectorLevel: string | null;
@@ -400,10 +411,11 @@ function buildCollectorProfile(
     isCurrentlyAtEvent: boolean;
     listingCount: number;
     wishlistCount: number;
-    matchScore?: number | null;
-    matchReason?: string | null;
+    matchScoreResult?: MatchScoreResult | null;
   },
 ): EventCollectorProfile {
+  const matchScoreResult = options.matchScoreResult ?? null;
+
   return {
     userId: user.id,
     displayName: user.display_name?.trim() || user.email,
@@ -415,8 +427,9 @@ function buildCollectorProfile(
     isCurrentlyAtEvent: options.isCurrentlyAtEvent,
     listingCount: options.listingCount,
     wishlistCount: options.wishlistCount,
-    matchScore: options.matchScore ?? null,
-    matchReason: options.matchReason ?? null,
+    matchScoreResult,
+    matchScore: matchScoreResult?.score ?? null,
+    matchReason: matchScoreResult?.reasons[0] ?? null,
     collectorLevel: null,
   };
 }
@@ -457,62 +470,46 @@ export async function loadEventAttendees(
     loadUserWishlistCounts(supabase, userIds),
   ]);
 
-  let viewerWishlist: WishlistRow[] = [];
-  let eventListings: ListingRow[] = [];
+  let scoreByUserId = new Map<string, MatchScoreResult>();
 
   if (viewerUserId) {
-    const [{ data: wishlistRows }, { data: listingsRows }] = await Promise.all([
-      supabase
-        .from("wishlist_items")
-        .select("card_name, card_ref, set_name, tcg_api_card_id")
-        .eq("user_id", viewerUserId),
-      supabase
-        .from("listings")
-        .select(
-          "id, event_id, user_id, type, card_name, card_ref, card_number, language, tcg_api_card_id, set_name",
-        )
-        .eq("event_id", eventId)
-        .eq("status", "active"),
-    ]);
-
-    viewerWishlist = (wishlistRows ?? []) as WishlistRow[];
-    eventListings = (listingsRows ?? []) as ListingRow[];
+    const batchContext = await loadMatchScoreBatchContext(
+      supabase,
+      eventId,
+      viewerUserId,
+      userIds,
+    );
+    scoreByUserId = new Map(
+      scoreCollectorsAtEvent(batchContext, userIds).map((entry) => [
+        entry.otherUserId,
+        entry.result,
+      ]),
+    );
   }
 
-  const profiles = attendees.map(({ user, isCurrentlyAtEvent }) => {
-    let matchScore: number | null = null;
-    let matchReason: string | null = null;
-
-    if (viewerUserId && viewerUserId !== user.id && viewerWishlist.length > 0) {
-      const theirListings = eventListings.filter(
-        (listing) =>
-          listing.user_id === user.id &&
-          (listing.type === "sale" || listing.type === "trade"),
-      );
-
-      let sharedMatches = 0;
-      for (const wishlistItem of viewerWishlist) {
-        if (theirListings.some((listing) => listingsMatchWishlist(listing, wishlistItem))) {
-          sharedMatches += 1;
-        }
-      }
-
-      if (sharedMatches > 0) {
-        matchScore = Math.min(100, sharedMatches * 20);
-        matchReason = `${sharedMatches} shared interest${sharedMatches === 1 ? "" : "s"}`;
-      }
-    }
-
-    return buildCollectorProfile(user, {
+  const profiles = attendees.map(({ user, isCurrentlyAtEvent }) =>
+    buildCollectorProfile(user, {
       isCurrentlyAtEvent,
       listingCount: listingCounts.get(user.id) ?? 0,
       wishlistCount: wishlistCounts.get(user.id) ?? 0,
-      matchScore,
-      matchReason,
-    });
-  });
+      matchScoreResult: scoreByUserId.get(user.id) ?? null,
+    }),
+  );
 
   profiles.sort((a, b) => {
+    if (viewerUserId) {
+      const scoreCompare = compareMatchScores(
+        a.matchScoreResult ?? emptyMatchScore(eventId),
+        b.matchScoreResult ?? emptyMatchScore(eventId),
+        a.isCurrentlyAtEvent,
+        b.isCurrentlyAtEvent,
+      );
+
+      if (scoreCompare !== 0) {
+        return scoreCompare;
+      }
+    }
+
     if (a.isCurrentlyAtEvent !== b.isCurrentlyAtEvent) {
       return a.isCurrentlyAtEvent ? -1 : 1;
     }
@@ -604,6 +601,25 @@ export async function loadEventVendors(
     });
 }
 
+export function rankEventSocialRecommendations(
+  attendees: EventCollectorProfile[],
+  viewerUserId: string,
+  eventId: string,
+  limit = 6,
+): EventCollectorProfile[] {
+  return attendees
+    .filter((profile) => profile.userId !== viewerUserId)
+    .sort((a, b) =>
+      compareMatchScores(
+        a.matchScoreResult ?? emptyMatchScore(eventId),
+        b.matchScoreResult ?? emptyMatchScore(eventId),
+        a.isCurrentlyAtEvent,
+        b.isCurrentlyAtEvent,
+      ),
+    )
+    .slice(0, limit);
+}
+
 export async function loadEventSocialRecommendations(
   supabase: SupabaseClient,
   eventId: string,
@@ -611,31 +627,12 @@ export async function loadEventSocialRecommendations(
   limit = 6,
 ): Promise<EventCollectorProfile[]> {
   const attendees = await loadEventAttendees(supabase, eventId, viewerUserId);
-
-  const scored = attendees
-    .filter((profile) => profile.userId !== viewerUserId)
-    .map((profile) => {
-      const interestScore = profile.matchScore ?? 0;
-      const activityScore = profile.listingCount * 2 + Math.min(profile.wishlistCount, 5);
-      const totalScore = interestScore * 3 + activityScore;
-
-      let matchReason = profile.matchReason;
-      if (!matchReason && profile.listingCount > 0) {
-        matchReason = `${profile.listingCount} active listing${profile.listingCount === 1 ? "" : "s"}`;
-      } else if (!matchReason && profile.wishlistCount > 0) {
-        matchReason = `${profile.wishlistCount} wishlist item${profile.wishlistCount === 1 ? "" : "s"}`;
-      }
-
-      return {
-        ...profile,
-        matchReason,
-        _score: totalScore,
-      };
-    })
-    .sort((a, b) => b._score - a._score)
-    .slice(0, limit);
-
-  return scored.map(({ _score: _, ...profile }) => profile);
+  return rankEventSocialRecommendations(
+    attendees,
+    viewerUserId,
+    eventId,
+    limit,
+  );
 }
 
 export async function loadEventVendorDetail(

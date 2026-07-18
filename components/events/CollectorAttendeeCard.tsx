@@ -1,11 +1,13 @@
 import Link from "next/link";
 
+import { MatchScoreCard } from "@/components/matches/MatchScoreCard";
 import {
   eventCardClassName,
   eventPrimaryButtonClassName,
   eventSecondaryButtonClassName,
 } from "@/components/events/event-styles";
 import { VendorBadge } from "@/components/VendorBadge";
+import { getTopMatchReasons } from "@/lib/match-score";
 import type { EventCollectorProfile } from "@/lib/event-experience";
 
 type CollectorAttendeeCardProps = {
@@ -13,6 +15,7 @@ type CollectorAttendeeCardProps = {
   eventId?: string;
   showMatchScore?: boolean;
   compact?: boolean;
+  cardImagesById?: Map<string, { small: string; large: string }>;
 };
 
 function CollectorAvatar({
@@ -56,6 +59,44 @@ function StatChip({ label, value }: { label: string; value: number }) {
   );
 }
 
+function InlineMatchScore({
+  collector,
+}: {
+  collector: EventCollectorProfile;
+}) {
+  const result = collector.matchScoreResult;
+  if (!result) {
+    return null;
+  }
+
+  const showScore = result.confidence !== "insufficient" || result.score > 0;
+  const topReasons = getTopMatchReasons(result, 1);
+
+  return (
+    <div className="mt-3 rounded-xl border border-zinc-100 bg-zinc-50/80 p-3">
+      {showScore ? (
+        <div className="flex items-center gap-2">
+          <span className="text-lg font-bold tabular-nums text-zinc-900">
+            {result.score}%
+          </span>
+          <span className="text-xs font-medium text-zinc-600">{result.label}</span>
+          {result.isMutual ? (
+            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-800">
+              Mutual
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+      {result.lowDataMessage ? (
+        <p className="mt-1 text-xs text-zinc-500">{result.lowDataMessage}</p>
+      ) : null}
+      {topReasons[0] ? (
+        <p className="mt-1 text-xs text-zinc-600">{topReasons[0]}</p>
+      ) : null}
+    </div>
+  );
+}
+
 /**
  * Premium collector card for event attendee lists, social recommendations,
  * and the full attendees directory.
@@ -65,7 +106,47 @@ export function CollectorAttendeeCard({
   eventId,
   showMatchScore = false,
   compact = false,
+  cardImagesById,
 }: CollectorAttendeeCardProps) {
+  if (showMatchScore && collector.matchScoreResult && !compact) {
+    return (
+      <div className="space-y-3">
+        <article className={eventCardClassName}>
+          <div className="flex gap-3">
+            <CollectorAvatar collector={collector} size="lg" />
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="truncate text-base font-semibold tracking-tight">
+                  {collector.displayName}
+                </h3>
+                {collector.isVendor ? (
+                  <VendorBadge standNumber={collector.vendorStandNumber} />
+                ) : null}
+                {collector.isCurrentlyAtEvent ? (
+                  <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-800">
+                    Checked in
+                  </span>
+                ) : null}
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <StatChip label="Listings" value={collector.listingCount} />
+                <StatChip label="Wishlist" value={collector.wishlistCount} />
+              </div>
+            </div>
+          </div>
+        </article>
+        <MatchScoreCard
+          result={collector.matchScoreResult}
+          otherUserId={collector.userId}
+          otherUserName={collector.displayName}
+          eventId={eventId}
+          cardImagesById={cardImagesById}
+          compact
+        />
+      </div>
+    );
+  }
+
   const profileHref = `/users/${collector.userId}`;
   const chatHref = `/messages?with=${collector.userId}`;
   const vendorHref =
@@ -86,21 +167,12 @@ export function CollectorAttendeeCard({
             {collector.isVendor ? (
               <VendorBadge standNumber={collector.vendorStandNumber} />
             ) : null}
-            {collector.collectorLevel ? (
-              <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-zinc-600">
-                {collector.collectorLevel}
-              </span>
-            ) : null}
             {collector.isCurrentlyAtEvent ? (
               <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-800">
                 Checked in
               </span>
             ) : null}
           </div>
-
-          {collector.matchReason ? (
-            <p className="mt-1 text-xs text-zinc-500">{collector.matchReason}</p>
-          ) : null}
 
           {!compact ? (
             <div className="mt-3 grid grid-cols-2 gap-2">
@@ -115,11 +187,7 @@ export function CollectorAttendeeCard({
             </p>
           )}
 
-          {showMatchScore && collector.matchScore !== null ? (
-            <p className="mt-2 text-xs font-medium text-zinc-600">
-              Match score: {collector.matchScore}%
-            </p>
-          ) : null}
+          {showMatchScore ? <InlineMatchScore collector={collector} /> : null}
         </div>
       </div>
 

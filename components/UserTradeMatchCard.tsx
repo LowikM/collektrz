@@ -14,10 +14,12 @@ import {
   type MatchedCard,
   type UserTradeMatch,
 } from "@/lib/listing-matches";
+import { getTopMatchReasons, type MatchScoreResult } from "@/lib/match-score";
 
 type UserTradeMatchCardProps = {
   match: UserTradeMatch;
   cardImagesById: Map<string, { small: string; large: string }>;
+  matchScoreResult?: MatchScoreResult | null;
 };
 
 const TYPE_LABELS = {
@@ -109,10 +111,31 @@ function MatchedCardSection({
 export function UserTradeMatchCard({
   match,
   cardImagesById,
+  matchScoreResult = null,
 }: UserTradeMatchCardProps) {
+  const topReasons = matchScoreResult
+    ? getTopMatchReasons(matchScoreResult, 2)
+    : [];
+
   return (
     <article className="rounded-xl border border-zinc-200 p-4 dark:border-zinc-800">
       <div className="space-y-3">
+        {matchScoreResult ? (
+          <div className="flex flex-wrap items-center gap-2 rounded-xl bg-zinc-50 px-3 py-2">
+            <span className="text-xl font-bold tabular-nums text-zinc-900">
+              {matchScoreResult.score}%
+            </span>
+            <span className="text-sm font-medium text-zinc-700">
+              {matchScoreResult.label}
+            </span>
+            {matchScoreResult.isMutual ? (
+              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800">
+                Mutual
+              </span>
+            ) : null}
+          </div>
+        ) : null}
+
         <div className="flex flex-wrap items-start gap-2">
           <span className={badgeClassName}>
             {MATCH_CATEGORY_LABELS[match.category]}
@@ -152,12 +175,24 @@ export function UserTradeMatchCard({
 
         <div className="space-y-1 text-sm text-zinc-700 dark:text-zinc-300">
           <p>{getMatchCategoryDescription(match)}</p>
+          {topReasons.map((reason) => (
+            <p key={reason}>{reason}</p>
+          ))}
           {match.theyHaveCount > 0 ? (
             <p>{formatTheyHaveSummary(match.theyHaveCount)}</p>
           ) : null}
           {match.iHaveCount > 0 ? (
             <p>{formatIHaveSummary(match.iHaveCount)}</p>
           ) : null}
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href={`/messages?with=${match.otherUserId}`}
+            className="inline-flex rounded-xl bg-foreground px-4 py-2 text-sm font-medium text-background transition-opacity hover:opacity-90"
+          >
+            Start chat
+          </Link>
         </div>
 
         <div className="space-y-2">

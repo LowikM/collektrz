@@ -1,19 +1,20 @@
-import { CollectorAttendeeCard } from "@/components/events/CollectorAttendeeCard";
+import { MatchScoreCard } from "@/components/matches/MatchScoreCard";
 import { EventSectionHeader } from "@/components/events/EventSectionHeader";
 import type { EventCollectorProfile } from "@/lib/event-experience";
 
 type EventSocialSectionProps = {
   eventId: string;
   recommendations: EventCollectorProfile[];
+  cardImagesById?: Map<string, { small: string; large: string }>;
 };
 
 /**
- * "Collectors you should meet" — simple interest/activity ranking today,
- * ready for Match Score in a future sprint.
+ * "Collectors you should meet" — ranked by centralized Match Score.
  */
 export function EventSocialSection({
   eventId,
   recommendations,
+  cardImagesById = new Map(),
 }: EventSocialSectionProps) {
   if (recommendations.length === 0) {
     return null;
@@ -24,20 +25,23 @@ export function EventSocialSection({
       <EventSectionHeader
         eyebrow="Social"
         title="Collectors you should meet"
-        description="Suggested based on shared interests, active listings, and wishlists at this event."
+        description="Ranked by Match Score — shared wishlists, listings, and event relevance."
       />
 
-      <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {recommendations.map((collector) => (
-          <li key={collector.userId}>
-            <CollectorAttendeeCard
-              collector={collector}
-              eventId={eventId}
-              showMatchScore
-              compact
-            />
-          </li>
-        ))}
+      <ul className="grid gap-4 lg:grid-cols-2">
+        {recommendations.map((collector) =>
+          collector.matchScoreResult ? (
+            <li key={collector.userId}>
+              <MatchScoreCard
+                result={collector.matchScoreResult}
+                otherUserId={collector.userId}
+                otherUserName={collector.displayName}
+                eventId={eventId}
+                cardImagesById={cardImagesById}
+              />
+            </li>
+          ) : null,
+        )}
       </ul>
     </section>
   );

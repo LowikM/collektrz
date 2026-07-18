@@ -8,6 +8,7 @@ import {
   type MatchListing,
   type MatchUser,
 } from "@/lib/listing-matches";
+import { buildMatchScoreFromTradeMatch } from "@/lib/match-score";
 import { getCardImagesByIds } from "@/lib/pokemon-tcg";
 import { createClient } from "@/lib/supabase/server";
 
@@ -159,12 +160,28 @@ export default async function MyMatchesPage({
     eventNames,
   );
 
+  const matchesWithScores = matches
+    .map((match) => ({
+      match,
+      matchScoreResult: buildMatchScoreFromTradeMatch(match),
+    }))
+    .sort((a, b) => b.matchScoreResult.score - a.matchScoreResult.score);
+
   const tcgApiCardIds = new Set<string>();
 
-  for (const match of matches) {
+  for (const { match, matchScoreResult } of matchesWithScores) {
     for (const card of [...match.theyHaveForMe, ...match.iHaveForThem]) {
       if (card.tcgApiCardId) {
         tcgApiCardIds.add(card.tcgApiCardId);
+      }
+    }
+
+    for (const item of [
+      ...matchScoreResult.theyHaveForYou,
+      ...matchScoreResult.youHaveForThem,
+    ]) {
+      if (item.tcgApiCardId) {
+        tcgApiCardIds.add(item.tcgApiCardId);
       }
     }
   }
@@ -207,11 +224,12 @@ export default async function MyMatchesPage({
           </p>
         ) : (
           <ul className="grid gap-4">
-            {matches.map((match) => (
+            {matchesWithScores.map(({ match, matchScoreResult }) => (
               <li key={match.id}>
                 <UserTradeMatchCard
                   match={match}
                   cardImagesById={cardImagesById}
+                  matchScoreResult={matchScoreResult}
                 />
               </li>
             ))}
