@@ -11,6 +11,8 @@ Read `PROJECT_CONTEXT.md` first. Use the **actual Supabase schema** below — do
 - **Listings:** create at `/events/[id]/new-listing` — **sale/trade only** with collection picker; want listings via `/events/[id]/activate-wishlist`; **only `active` listings** on event detail
 - **Listing interests (MVP):** `listing_interests` table; `addInterest` / `removeInterest` in `app/listing-interests/actions.ts`; ❤️ I'm interested / ✓ Interested on cards; owners see `Interested (N)`; protected `/my-interests`
 - **Contact flow (MVP):** `messages` table; `sendMessage` in `app/messages/actions.ts`; inline `SendMessageForm` on matches, event listings, and interests; protected `/messages` inbox
+- **Chat Experience v2 (Phase 1):** Messenger-style `/messages` with conversation sidebar, chat bubbles, search, mobile layout; `lib/conversations.ts` + `components/chat/*`
+- **Chat Experience v2 (Phase 2):** Empty states, listing context card, composer polish, date separators, scroll/jump-to-latest, sent/read status, sidebar polish, a11y, “recently active” wording; helpers in `lib/chat-*.ts`
 - **Message replies + unread:** `replyToMessage`, `markMessageRead`, `ReplyMessageForm`; unread badge on navbar; inbox marks all received read on open
 - **User profiles (MVP):** optional profile fields on `users`; `updateProfile` in `app/profile/actions.ts`; `/profile` edit form; public `/users/[id]`; `UserProfileLink` on listings, matches, interested users, messages
 - **My Listings:** protected `/my-listings` — owner’s listings, interested users, status updates
@@ -392,6 +394,107 @@ Transforms `/events/[id]` from a simple listing page into the central event hub.
 - Phase 4: Printable QR badges, event analytics dashboard, event banner upload
 - Phase 5: Event chat channels, push notifications, match alerts
 
+## Chat Experience v2 — Phase 1 (done)
+
+Redesigns `/messages` into a Messenger/Vinted-style two-pane chat without schema changes.
+
+**Architecture:**
+
+| Layer | Responsibility |
+|---|---|
+| `lib/conversations.ts` | Group flat `messages` rows into conversations; previews, timestamps, bubble grouping |
+| `lib/messages.ts` | Added `markConversationRead()` — marks one thread read (replaces inbox-wide mark-on-open) |
+| `components/chat/ChatExperience.tsx` | Responsive shell — sidebar + chat pane |
+| `components/chat/ConversationList.tsx` | Searchable conversation list with avatars, unread badges, online heuristic |
+| `components/chat/ChatWindow.tsx` | Message thread + input |
+| `components/chat/ChatHeader.tsx` | Profile, collection, wishlist quick links |
+| `components/chat/ChatMessageInput.tsx` | Auto-expanding textarea; Enter send / Shift+Enter newline |
+| `app/messages/page.tsx` | Single query for all user messages; builds conversations server-side |
+
+**Unchanged:**
+
+- `app/messages/actions.ts` — `sendMessage`, `replyToMessage`, `markMessageRead`
+- `components/SendMessageForm.tsx`, `components/ReplyMessageForm.tsx` — still used on listings, matches, interests
+- Supabase schema, auth, no realtime added
+
+**Conversation URL:** `/messages?with={otherUserId}`
+
+**Online status:** Heuristic from last message timestamp (5 min = online). No websocket.
+
+**Read state:** Opening a conversation marks that thread read (navbar unread count updates on next layout refresh).
+
+**How to test:**
+
+1. Sign in, send messages from a listing or match.
+2. Open `/messages` — conversation list with preview, timestamp, avatar.
+3. Search conversations — instant client-side filter.
+4. Open a thread — bubbles left/right, grouped messages, header actions.
+5. Send with Enter; Shift+Enter for newline.
+6. Mobile — list full screen → tap conversation → chat full screen → back arrow.
+7. Confirm inline `SendMessageForm` on `/my-matches` and listing pages still works.
+
+**Future phases:**
+
+- Realtime message delivery (Supabase Realtime)
+- True online presence + typing indicators
+- Full thread view with `parent_message_id` nesting
+- Public collection/wishlist pages for header quick links
+- Deep links from matches/interests to `/messages?with=...`
+
+## Chat Experience v2 — Phase 2 (done)
+
+Polishes the Phase 1 messenger UI toward a Vinted-style marketplace conversation without schema changes.
+
+**New helpers:**
+
+| File | Purpose |
+|---|---|
+| `lib/chat-context.ts` | Extract listing context from `messages.listing_id` joins |
+| `lib/chat-timeline.ts` | Date separators (Today, Yesterday, weekday, full date) |
+| `lib/chat-activity.ts` | “Recently active” / “Active Xm ago” wording (not true online) |
+| `lib/chat-message-status.ts` | Sent / Read labels from `read_at` |
+| `components/chat/chat-styles.ts` | Shared focus/button classes |
+
+**New components:**
+
+| File | Purpose |
+|---|---|
+| `components/chat/ChatEmptyStates.tsx` | No conversations, no selection, search no-results |
+| `components/chat/ChatContextCard.tsx` | Compact listing card under chat header |
+| `components/chat/ChatMessageThread.tsx` | Scroll management + jump-to-latest |
+
+**Context available without migration:**
+
+- From `messages.listing_id` → `listings`: `card_name`, `type`, `status`, `condition`, `target_price`, `event_id`, `tcg_api_card_id`, `collection_item_id`
+- From `listings.events`: event name
+- Thumbnails via `getCardImagesByIds` + `getCollectionItemImageUrlsByIds`
+
+**Not available without schema change:**
+
+- Dedicated match context (`match_id` not on messages)
+- True online/presence or typing indicators
+- Delivery status beyond `read_at` (no separate “delivered”)
+- Direct listing detail URL (links to `/events/[eventId]`)
+
+**How to test Phase 2:**
+
+1. `/messages` with no history — empty state with links to listings, matches, events.
+2. Desktop with conversations but none selected — centered “Select a conversation” state.
+3. Search with no matches — “No conversations found” + Clear search (search persists when opening a thread).
+4. Open a thread started from a listing — context card with image/title/price/status/event + “View listing”.
+5. Send message — button shows “Sending…”, textarea disabled; optimistic bubble with “Sending”; scrolls to latest.
+6. Scroll up in long thread — “Jump to latest” appears; sending while scrolled up does not force-scroll.
+7. Date separators between day groups; own messages show Sent/Read under last bubble.
+8. Header/sidebar show “Recently active” / “Active Xm ago” — never “Online”.
+9. Confirm `SendMessageForm` on listings/matches still works.
+
+**Future phases:**
+
+- Realtime message delivery (Supabase Realtime)
+- True online presence + typing indicators
+- Match context column or metadata
+- Dedicated listing deep link route
+
 ## Supabase schema
 
 **`events`:** `id`, `name`, `location`, `start_date`, `end_date`, `join_code`, `banner_url`, `created_by`, `created_at`
@@ -448,6 +551,8 @@ Transforms `/events/[id]` from a simple listing page into the central event hub.
 | Collection Dashboard (Home) | Done |
 | Pokémon Sealed Products (MVP) | Done |
 | Event Experience v2 (Phase 1) | Done |
+| Chat Experience v2 (Phase 1) | Done |
+| Chat Experience v2 (Phase 2) | Done |
 | Join event | Not started |
 
 ## Future: Bulk add cards by set/range

@@ -36,3 +36,23 @@ export async function markAllReceivedMessagesRead(
     console.error("[messages] failed to mark messages read", error.message);
   }
 }
+
+export async function markConversationRead(
+  supabase: SupabaseClient,
+  userId: string,
+  otherUserId: string,
+) {
+  const { error } = await supabase
+    .from("messages")
+    .update({ read_at: new Date().toISOString() })
+    .eq("recipient_id", userId)
+    .eq("sender_id", otherUserId)
+    .is("read_at", null);
+
+  if (error) {
+    console.error(
+      "[messages] failed to mark conversation read",
+      error.message,
+    );
+  }
+}

@@ -149,6 +149,8 @@ Unique constraint on `(listing_id, user_id)`. Replaces legacy `interests` table.
 - **Collection Dashboard (Home):** logged-in `/` shows collector dashboard with collection/trading/event stats, continue collecting sets, top wishlist cards, quick actions; guests see landing page
 - **Pokémon Sealed Products (MVP):** sealed-specific collection form fields (product type, sealed condition, image URL); sealed badges and thumbnails on `/my-collection`; listing create/display prefills from sealed collection items via `collection_item_id` image fallback
 - **Event Experience v2 (Phase 1):** premium `/events/[id]` hero with stats; logged-in personal dashboard (listings bringing, wishlist matches, trader matches); vendor badges; visitor presence toggles (`event_attendees`); QR profile component; `lib/event-experience.ts` data layer
+- **Chat Experience v2 (Phase 1):** Messenger-style `/messages` UI — conversation sidebar with search, unread badges, avatars; chat window with grouped bubbles; header with profile actions; Enter/Shift+Enter input; responsive mobile layout; `lib/conversations.ts` grouping layer
+- **Chat Experience v2 (Phase 2):** Polished empty states; marketplace context card from `listing_id`; improved composer (loading, draft retention, char counter); date separators; scroll-to-latest + jump button; sent/read status; conversation list polish; accessibility pass; “recently active” activity wording (not true online)
 
 ## Existing routes
 
@@ -165,7 +167,7 @@ Unique constraint on `(listing_id, user_id)`. Replaces legacy `interests` table.
 | `/my-listings` | Protected | Owner listings, interested users, status updates |
 | `/my-interests` | Protected | Listings the user has marked as interested |
 | `/my-matches` | Protected | User-centric trade matches grouped by event + collector |
-| `/messages` | Protected | Sent and received messages inbox |
+| `/messages` | Protected | Messenger-style inbox — conversation list + chat window (`?with=userId`) |
 | `/events` | Public | Event list |
 | `/events/[id]` | Public | Event hub — hero stats, personal dashboard (signed in), presence toggles, marketplace listings |
 | `/events/[id]/new-listing` | Protected | Create sale/trade listing from collection or manual entry |
@@ -188,4 +190,5 @@ Unique constraint on `(listing_id, user_id)`. Replaces legacy `interests` table.
 - **Schema-driven UI** — events use `start_date`/`end_date` (not `date`/`description`); listings use enums for `type` and `status`; only `active` listings show on event pages; owners update status on `/my-listings`; `card_ref` is required in DB and derived from `card_name.trim().toLowerCase()` for listings and collection items; listing rows snapshot collection fields at create time (editing collection later does not change listings); optional `language` uses app dropdown values (English, Japanese, etc.) stored as text; one interest per user per listing via `listing_interests`; event listing filters use GET forms and URL search params with Supabase `ilike`/`eq` queries (no in-memory filtering)
 - **Matching engine (V2):** `/my-matches` groups by event + other user; dedupes cards by `tcg_api_card_id` or `card_ref`; categories: perfect trade, strong want, direct, reverse; absolute counts only (no percentages); computed on page load (no matches table)
 - **Contact flow (MVP):** one-way `messages` rows; `sendMessage(recipientId, listingId, formData)` in `app/messages/actions.ts`; RLS limits read to sender/recipient; no real-time chat
-- **Message replies + unread:** `replyToMessage(messageId, formData)` links via `parent_message_id`; inbox marks received messages read on open; navbar shows `Messages (N)` for unread count
+- **Message replies + unread:** `replyToMessage(messageId, formData)` links via `parent_message_id`; opening a conversation marks that thread read via `markConversationRead()`; navbar shows `Messages (N)` for unread count
+- **Chat context (Phase 2):** conversations derive listing context from `messages.listing_id` → joined `listings` (+ event name, thumbnail via TCG/collection image helpers). No `match_id` on messages — match-originated threads only show context when a listing was linked at send time.
