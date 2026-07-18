@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 
-import { profileBadgeClassName } from "@/components/profile/profile-styles";
+import { profileTabLinkClassName } from "@/components/profile/profile-styles";
 import type { ProfileTab } from "@/lib/profile";
 
 const TABS: Array<{ id: ProfileTab; label: string }> = [
@@ -20,7 +20,7 @@ type ProfileTabsProps = {
   userId: string;
 };
 
-export function ProfileTabs({ activeTab, userId }: ProfileTabsProps) {
+export function ProfileTabs({ activeTab }: ProfileTabsProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
@@ -37,9 +37,9 @@ export function ProfileTabs({ activeTab, userId }: ProfileTabsProps) {
   return (
     <nav
       aria-label="Profile sections"
-      className="sticky top-0 z-20 -mx-4 border-b border-zinc-200 bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/80 dark:border-zinc-800"
+      className="sticky top-0 z-20 -mx-4 border-b border-zinc-200/80 bg-background/90 px-4 py-3 backdrop-blur-md supports-[backdrop-filter]:bg-background/75 dark:border-zinc-800"
     >
-      <ul className="flex gap-1 overflow-x-auto pb-px [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <ul className="flex gap-2 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {TABS.map((tab) => {
           const isActive = tab.id === activeTab;
 
@@ -47,10 +47,10 @@ export function ProfileTabs({ activeTab, userId }: ProfileTabsProps) {
             <li key={tab.id} className="shrink-0">
               <Link
                 href={buildHref(tab.id)}
-                className={`inline-flex items-center rounded-t-xl px-4 py-3 text-sm font-medium transition-colors ${
+                className={`${profileTabLinkClassName} ${
                   isActive
-                    ? "border-b-2 border-foreground text-foreground"
-                    : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100"
+                    ? "bg-zinc-900 text-white shadow-sm dark:bg-zinc-100 dark:text-zinc-900"
+                    : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-zinc-100"
                 }`}
                 aria-current={isActive ? "page" : undefined}
               >
@@ -62,14 +62,4 @@ export function ProfileTabs({ activeTab, userId }: ProfileTabsProps) {
       </ul>
     </nav>
   );
-}
-
-export function ProfileTabCountBadge({ count }: { count: number | null }) {
-  if (count === null) {
-    return (
-      <span className={`${profileBadgeClassName} ml-1.5 opacity-60`}>—</span>
-    );
-  }
-
-  return <span className={`${profileBadgeClassName} ml-1.5`}>{count}</span>;
 }

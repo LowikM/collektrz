@@ -4,14 +4,12 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import {
-  ListingCardThumbnail,
-  ListingOfficialCardBadges,
-} from "@/components/ListingOfficialCard";
-import {
   profileBadgeClassName,
-  profileCardClassName,
-  profileGhostButtonClassName,
+  profileCardInteractiveClassName,
+  profileImageGradientClassName,
+  profileQtyBadgeClassName,
   profileSecondaryButtonClassName,
+  profileTradeBadgeClassName,
 } from "@/components/profile/profile-styles";
 import type { ProfileCollectionItem } from "@/lib/profile";
 
@@ -72,43 +70,52 @@ function CollectionItemCard({
 }) {
   const href = isOwnProfile ? "/my-collection" : `/users/${ownerId}?tab=collection`;
   const rarityLabel = getRarityLabel(item);
+  const firstName = ownerName.split(" ")[0];
 
   if (mode === "list") {
     return (
-      <article className={`${profileCardClassName} flex gap-4 p-4`}>
-        <ListingCardThumbnail imageUrl={imageUrl} cardName={item.card_name} />
+      <article
+        className={`group flex gap-5 ${profileCardInteractiveClassName} p-5`}
+      >
+        <div className="relative shrink-0 overflow-hidden rounded-xl bg-zinc-50 dark:bg-zinc-900">
+          {imageUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={imageUrl}
+              alt={item.card_name}
+              className="h-24 w-[4.5rem] object-contain"
+              loading="lazy"
+            />
+          ) : null}
+        </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className={profileBadgeClassName}>
-              {item.item_kind === "sealed" ? "Sealed" : "Card"}
-            </span>
             {item.hasTradeListing ? (
-              <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-800">
-                Tradeable
-              </span>
+              <span className={profileTradeBadgeClassName}>Trade</span>
             ) : null}
-            <ListingOfficialCardBadges
-              tcgApiCardId={item.tcg_api_card_id}
-              cardNumber={item.card_number}
-            />
+            <span className={profileQtyBadgeClassName}>×{item.quantity}</span>
+            {rarityLabel ? (
+              <span className={profileBadgeClassName}>{rarityLabel}</span>
+            ) : null}
           </div>
-          <h3 className="mt-1 text-base font-semibold">{item.card_name}</h3>
+          <h3 className="mt-2 text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+            {item.card_name}
+          </h3>
           {item.set_name ? (
             <p className="text-sm text-zinc-500">{item.set_name}</p>
           ) : null}
-          <p className="mt-1 text-xs text-zinc-500">
-            Qty {item.quantity}
-            {item.condition ? ` · ${item.condition}` : ""}
-          </p>
+          {item.condition ? (
+            <p className="mt-1 text-xs text-zinc-400">{item.condition}</p>
+          ) : null}
         </div>
-        <div className="flex shrink-0 flex-col gap-2">
+        <div className="flex shrink-0 flex-col gap-2 opacity-100 sm:opacity-80 sm:transition-opacity sm:group-hover:opacity-100">
           <Link href={href} className={profileSecondaryButtonClassName}>
             Open
           </Link>
           {!isOwnProfile ? (
             <Link
               href={`/messages?with=${ownerId}`}
-              className={profileGhostButtonClassName}
+              className="inline-flex min-h-10 items-center justify-center rounded-xl px-4 text-sm font-medium text-zinc-600 hover:bg-zinc-100"
             >
               Message
             </Link>
@@ -121,10 +128,10 @@ function CollectionItemCard({
   const compact = mode === "compact";
 
   return (
-    <article className={`group ${profileCardClassName} overflow-hidden`}>
+    <article className={`group overflow-hidden ${profileCardInteractiveClassName}`}>
       <Link href={href} className="block">
         <div
-          className={`relative overflow-hidden bg-gradient-to-b from-zinc-50 to-zinc-100 dark:from-zinc-900 dark:to-zinc-950 ${
+          className={`relative overflow-hidden ${profileImageGradientClassName} ${
             compact ? "aspect-[4/5]" : "aspect-[3/4]"
           }`}
         >
@@ -133,78 +140,63 @@ function CollectionItemCard({
             <img
               src={imageUrl}
               alt={item.card_name}
-              className="h-full w-full object-contain p-3 transition-transform duration-300 group-hover:scale-105"
+              className="h-full w-full object-contain p-4 transition-transform duration-500 ease-out group-hover:scale-[1.05] sm:p-5"
               loading="lazy"
             />
           ) : (
-            <div className="flex h-full items-center justify-center p-4 text-center text-sm text-zinc-500">
+            <div className="flex h-full items-center justify-center p-6 text-center text-sm text-zinc-400">
               {item.card_name}
             </div>
           )}
-          <div className="absolute left-2 top-2 flex flex-col gap-1">
+
+          <div className="absolute left-3 top-3 flex flex-col gap-1.5">
+            <span className={profileQtyBadgeClassName}>×{item.quantity}</span>
+            {item.hasTradeListing ? (
+              <span className={profileTradeBadgeClassName}>Trade</span>
+            ) : null}
             {item.is_featured ? (
-              <span className="rounded-full bg-amber-500/90 px-2 py-0.5 text-[10px] font-medium text-white backdrop-blur">
+              <span className="rounded-full bg-amber-500/90 px-2.5 py-0.5 text-[10px] font-semibold text-white shadow-sm">
                 Featured
               </span>
             ) : null}
-            <span className="rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-medium text-white backdrop-blur">
-              {isOwnProfile
-                ? item.visibility === "public"
-                  ? "Public"
-                  : "Private"
-                : "Public"}
-            </span>
           </div>
-          <div className="absolute inset-x-0 bottom-0 flex gap-2 bg-gradient-to-t from-black/75 via-black/30 to-transparent p-3 pt-10 opacity-0 transition-opacity group-hover:opacity-100">
-            <span className="rounded-lg bg-white/95 px-2 py-1 text-[10px] font-medium text-zinc-800">
-              Quick view
-            </span>
+
+          <div className="absolute inset-0 flex items-end justify-center bg-gradient-to-t from-black/50 via-black/10 to-transparent p-4 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
+            <div className="flex w-full flex-wrap justify-center gap-2">
+              <span className="rounded-full bg-white/95 px-3 py-1.5 text-xs font-medium text-zinc-800 shadow-sm">
+                Quick view
+              </span>
+              {!isOwnProfile ? (
+                <span className="rounded-full bg-white/95 px-3 py-1.5 text-xs font-medium text-zinc-800 shadow-sm">
+                  Message {firstName}
+                </span>
+              ) : null}
+            </div>
           </div>
         </div>
       </Link>
-      <div className={compact ? "space-y-1.5 p-3" : "space-y-2 p-4"}>
-        <h3 className={`font-semibold leading-snug ${compact ? "line-clamp-1 text-sm" : "line-clamp-2 text-sm"}`}>
+
+      <div className={compact ? "space-y-1.5 p-4" : "space-y-2 p-5"}>
+        <h3
+          className={`font-semibold leading-snug text-zinc-900 dark:text-zinc-50 ${
+            compact ? "line-clamp-1 text-sm" : "line-clamp-2 text-base"
+          }`}
+        >
           {item.card_name}
         </h3>
         {item.set_name ? (
-          <p className="truncate text-xs text-zinc-500">{item.set_name}</p>
+          <p className="truncate text-sm text-zinc-500">{item.set_name}</p>
         ) : null}
-        <div className="flex flex-wrap items-center gap-1.5">
-          {rarityLabel ? (
-            <span className={profileBadgeClassName}>{rarityLabel}</span>
-          ) : null}
-          <span className={profileBadgeClassName}>Qty {item.quantity}</span>
-          {item.condition ? (
-            <span className={profileBadgeClassName}>{item.condition}</span>
-          ) : null}
-          {item.hasTradeListing ? (
-            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-800">
-              Trade
-            </span>
-          ) : null}
-        </div>
-        <div className="flex flex-wrap gap-2 pt-1">
-          <Link href={href} className="text-xs font-medium text-zinc-600 hover:underline">
-            Open
-          </Link>
-          {!isOwnProfile ? (
-            <>
-              <Link
-                href={`/messages?with=${ownerId}`}
-                className="text-xs font-medium text-zinc-600 hover:underline"
-              >
-                Message {ownerName.split(" ")[0]}
-              </Link>
-              <Link
-                href={`/messages?with=${ownerId}`}
-                className="text-xs font-medium text-zinc-600 hover:underline"
-              >
-                Trade
-              </Link>
-            </>
-          ) : null}
-          <span className="text-[10px] text-zinc-400">Value soon</span>
-        </div>
+        {rarityLabel || item.condition ? (
+          <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+            {rarityLabel ? (
+              <span className={profileBadgeClassName}>{rarityLabel}</span>
+            ) : null}
+            {item.condition ? (
+              <span className={profileBadgeClassName}>{item.condition}</span>
+            ) : null}
+          </div>
+        ) : null}
       </div>
     </article>
   );
@@ -238,26 +230,30 @@ export function CollectionGrid({
     }
 
     if (mode === "compact") {
-      return "grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5";
+      return "grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4";
     }
 
-    return "grid grid-cols-2 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4";
+    return "grid grid-cols-2 gap-4 sm:gap-5 lg:grid-cols-3";
   }, [mode]);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-zinc-500">{items.length} items shown</p>
-        <div className="inline-flex rounded-xl border border-zinc-200 p-1 dark:border-zinc-800">
+        <p className="text-sm text-zinc-500">{items.length} items</p>
+        <div
+          className="inline-flex rounded-full border border-zinc-200 bg-zinc-50/80 p-1 dark:border-zinc-800 dark:bg-zinc-900/50"
+          role="group"
+          aria-label="Collection display mode"
+        >
           {(["grid", "compact", "list"] as const).map((option) => (
             <button
               key={option}
               type="button"
               onClick={() => updateMode(option)}
-              className={`rounded-lg px-3 py-1.5 text-xs font-medium capitalize transition-colors ${
+              className={`min-h-9 rounded-full px-4 py-1.5 text-xs font-medium capitalize transition-all duration-200 ${
                 mode === option
-                  ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
-                  : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-900"
+                  ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-800 dark:text-zinc-50"
+                  : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
               }`}
             >
               {option === "compact" ? "Compact" : option}
@@ -279,31 +275,6 @@ export function CollectionGrid({
           />
         ))}
       </div>
-    </div>
-  );
-}
-
-export function CollectionDisplayModeToggle({
-  mode,
-  onChange,
-}: {
-  mode: CollectionDisplayMode;
-  onChange: (mode: CollectionDisplayMode) => void;
-}) {
-  return (
-    <div className="inline-flex rounded-xl border border-zinc-200 p-1 dark:border-zinc-800">
-      {(["grid", "compact", "list"] as const).map((option) => (
-        <button
-          key={option}
-          type="button"
-          onClick={() => onChange(option)}
-          className={`rounded-lg px-3 py-1.5 text-xs font-medium capitalize ${
-            mode === option ? "bg-zinc-900 text-white" : "text-zinc-600"
-          }`}
-        >
-          {option}
-        </button>
-      ))}
     </div>
   );
 }

@@ -2,13 +2,15 @@ import Link from "next/link";
 
 import { FeaturedCard, ListingPreviewCard } from "@/components/profile/FeaturedCard";
 import { ProfileEmptyState } from "@/components/profile/ProfileEmptyState";
-import { ProfileSectionHeader } from "@/components/profile/ProfileSectionHeader";
 import { ProfileStatCard } from "@/components/profile/ProfileStatCard";
-import { profilePanelClassName } from "@/components/profile/profile-styles";
+import { profilePanelClassName, OVERVIEW_FEATURED_VISIBLE_LIMIT } from "@/components/profile/profile-styles";
+import {
+  ProfileSection,
+  ProfileSectionHeader,
+} from "@/components/profile/ProfileSectionHeader";
 import {
   canViewProfileStat,
   getFeaturedSectionState,
-  getNoFeaturedMessage,
   getNoPublicItemsMessage,
   getPrivateSectionMessage,
   getWishlistSectionState,
@@ -55,17 +57,27 @@ export async function ProfileOverviewTab({
   const displayName = getUserDisplayLabel(data.user);
 
   return (
-    <div className="space-y-8">
-      <section className="space-y-4">
+    <div className="space-y-12 sm:space-y-14">
+      <ProfileSection className="space-y-6">
         <ProfileSectionHeader
           title="Featured collection"
-          description="Highlights from this collector's showcase."
-          actionLabel="View all"
-          actionHref={`/users/${userId}?tab=collection`}
+          description="The cards that define this collector's showcase."
+          actionLabel={
+            featuredState === "visible" || data.featuredCollection.length > 0
+              ? "View collection"
+              : undefined
+          }
+          actionHref={
+            featuredState === "visible" || data.featuredCollection.length > 0
+              ? `/users/${userId}?tab=collection`
+              : undefined
+          }
         />
         {featuredState === "visible" ? (
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            {data.featuredCollection.map((item) => (
+          <div className="grid grid-cols-2 gap-4 sm:gap-6 lg:grid-cols-4">
+            {data.featuredCollection
+              .slice(0, OVERVIEW_FEATURED_VISIBLE_LIMIT)
+              .map((item) => (
               <FeaturedCard
                 key={item.id}
                 id={item.id}
@@ -84,6 +96,7 @@ export async function ProfileOverviewTab({
                     ? "/my-collection"
                     : `/users/${userId}?tab=collection`
                 }
+                variant="showcase"
               />
             ))}
           </div>
@@ -92,25 +105,21 @@ export async function ProfileOverviewTab({
             title={
               featuredState === "private"
                 ? "Collection is private"
-                : featuredState === "empty"
-                  ? "No featured cards yet"
-                  : "No featured cards selected"
+                : "No featured cards yet"
             }
             description={
               featuredState === "private"
                 ? getPrivateSectionMessage("collection")
-                : featuredState === "empty"
-                  ? getNoFeaturedMessage(true)
-                  : getNoFeaturedMessage(data.isOwnProfile)
+                : "Highlight your favourite cards so collectors immediately know what you collect."
             }
             actionLabel={data.isOwnProfile ? "Manage collection" : undefined}
             actionHref={data.isOwnProfile ? "/my-collection" : undefined}
             icon="🃏"
           />
         )}
-      </section>
+      </ProfileSection>
 
-      <section className="space-y-4">
+      <ProfileSection alt className="space-y-6">
         <ProfileSectionHeader
           title="Recent listings"
           description="Active marketplace listings from this collector."
@@ -146,9 +155,9 @@ export async function ProfileOverviewTab({
             icon="📋"
           />
         )}
-      </section>
+      </ProfileSection>
 
-      <section className="space-y-4">
+      <ProfileSection className="space-y-6">
         <ProfileSectionHeader
           title="Wishlist highlights"
           actionLabel="View wishlist"
@@ -194,9 +203,9 @@ export async function ProfileOverviewTab({
             icon="⭐"
           />
         )}
-      </section>
+      </ProfileSection>
 
-      <section className="space-y-4">
+      <ProfileSection alt className="space-y-6">
         <ProfileSectionHeader
           title="Recent event activity"
           actionLabel="View events"
@@ -233,18 +242,18 @@ export async function ProfileOverviewTab({
             icon="📍"
           />
         )}
-      </section>
+      </ProfileSection>
 
-      <section className="space-y-4">
+      <ProfileSection className="space-y-6">
         <ProfileSectionHeader title="Recent trades" description="Trade history coming soon." />
         <ProfileEmptyState
           title="Trade history coming soon"
           description={`Completed trades will appear here once ${displayName} finishes more deals.`}
           icon="🤝"
         />
-      </section>
+      </ProfileSection>
 
-      <section className="space-y-4">
+      <ProfileSection alt className="space-y-6">
         <ProfileSectionHeader title="Collector stats" />
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           <ProfileStatCard
@@ -267,7 +276,7 @@ export async function ProfileOverviewTab({
           <ProfileStatCard label="Completed trades" value={data.stats.completedTradesCount} />
           <ProfileStatCard label="Events attended" value={data.stats.eventsAttendedCount} />
         </div>
-      </section>
+      </ProfileSection>
     </div>
   );
 }

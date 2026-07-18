@@ -53,7 +53,7 @@ export function ProfileCollectionTab({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <ProfileSectionHeader
         title="Collection showcase"
         description={

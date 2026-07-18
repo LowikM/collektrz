@@ -6,6 +6,11 @@ import { ProfileEventsTab } from "@/components/profile/ProfileEventsTab";
 import { ProfileHero } from "@/components/profile/ProfileHero";
 import { ProfileListingsTab } from "@/components/profile/ProfileListingsTab";
 import { ProfileOverviewTab } from "@/components/profile/ProfileOverviewTab";
+import {
+  ProfileTabsSkeleton,
+  ProfileOverviewSkeleton,
+  CollectionGridSkeleton,
+} from "@/components/profile/ProfileSkeletons";
 import { ProfileTabs } from "@/components/profile/ProfileTabs";
 import { ProfileWishlistTab } from "@/components/profile/ProfileWishlistTab";
 import type { ProfilePageData, ProfileTab } from "@/lib/profile";
@@ -22,6 +27,14 @@ type ProfileExperienceProps = {
     sort?: string;
   };
 };
+
+function TabSkeleton({ activeTab }: { activeTab: ProfileTab }) {
+  if (activeTab === "collection") {
+    return <CollectionGridSkeleton />;
+  }
+
+  return <ProfileOverviewSkeleton />;
+}
 
 function ProfileTabPanel({
   data,
@@ -81,7 +94,7 @@ export function ProfileExperience({
   collectionFilters,
 }: ProfileExperienceProps) {
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-6 px-4 py-6 sm:py-8">
+    <div className="mx-auto w-full max-w-6xl space-y-8 px-4 py-6 sm:space-y-10 sm:py-10">
       <ProfileHero
         user={data.user}
         stats={data.stats}
@@ -93,17 +106,21 @@ export function ProfileExperience({
         cardImagesById={cardImagesById}
       />
 
-      <Suspense fallback={<div className="h-12 animate-pulse rounded-xl bg-zinc-100 dark:bg-zinc-900" />}>
+      <Suspense fallback={<ProfileTabsSkeleton />}>
         <ProfileTabs activeTab={activeTab} userId={userId} />
       </Suspense>
 
-      <ProfileTabPanel
-        data={data}
-        activeTab={activeTab}
-        userId={userId}
-        cardImagesById={cardImagesById}
-        collectionFilters={collectionFilters}
-      />
+      <div className="min-h-[12rem]">
+        <Suspense fallback={<TabSkeleton activeTab={activeTab} />}>
+          <ProfileTabPanel
+            data={data}
+            activeTab={activeTab}
+            userId={userId}
+            cardImagesById={cardImagesById}
+            collectionFilters={collectionFilters}
+          />
+        </Suspense>
+      </div>
     </div>
   );
 }
