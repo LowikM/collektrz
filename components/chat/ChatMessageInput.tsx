@@ -4,7 +4,12 @@ import { useEffect, useState } from "react";
 import { useFormStatus } from "react-dom";
 
 import { sendMessage } from "@/app/messages/actions";
-import { chatFocusRingClassName, chatPrimaryButtonClassName } from "@/components/chat/chat-styles";
+import {
+  chatComposerInputClassName,
+  chatComposerSurfaceClassName,
+  chatFocusRingClassName,
+  chatSendButtonClassName,
+} from "@/components/chat/chat-styles";
 import { MESSAGE_BODY_MAX_LENGTH } from "@/lib/messages";
 
 type ChatMessageInputProps = {
@@ -21,6 +26,25 @@ function getDraftKey(recipientId: string) {
   return `${DRAFT_STORAGE_PREFIX}${recipientId}`;
 }
 
+function SendIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="h-[18px] w-[18px]"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5"
+      />
+    </svg>
+  );
+}
+
 function SendButton() {
   const { pending } = useFormStatus();
 
@@ -29,9 +53,14 @@ function SendButton() {
       type="submit"
       disabled={pending}
       aria-busy={pending}
-      className={`${chatPrimaryButtonClassName} h-11 shrink-0 px-4`}
+      aria-label={pending ? "Sending message" : "Send message"}
+      className={`${chatSendButtonClassName} ${chatFocusRingClassName}`}
     >
-      {pending ? "Sending…" : "Send"}
+      {pending ? (
+        <span className="text-xs font-medium">…</span>
+      ) : (
+        <SendIcon />
+      )}
     </button>
   );
 }
@@ -69,19 +98,19 @@ function MessageFields({
         aria-describedby={
           inlineError ? "chat-message-error" : "chat-message-hint"
         }
-        className={`max-h-40 min-h-[44px] w-full resize-none rounded-2xl border border-zinc-300 bg-zinc-50 px-4 py-3 text-sm leading-6 outline-none transition-colors focus:border-zinc-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 ${chatFocusRingClassName}`}
+        className={`${chatComposerInputClassName} ${chatFocusRingClassName}`}
       />
 
-      <div className="mt-2 flex items-start justify-between gap-3">
+      <div className="mt-1.5 flex items-start justify-between gap-3 px-1">
         <p
           id="chat-message-hint"
-          className="text-xs text-zinc-500 dark:text-zinc-500"
+          className="text-[11px] text-zinc-400"
         >
           Enter to send · Shift+Enter for a new line
         </p>
         {length >= COUNTER_THRESHOLD ? (
           <p
-            className="shrink-0 text-xs text-zinc-500 dark:text-zinc-500"
+            className="shrink-0 text-[11px] tabular-nums text-zinc-400"
             aria-live="polite"
           >
             {length}/{MESSAGE_BODY_MAX_LENGTH}
@@ -92,7 +121,7 @@ function MessageFields({
       {inlineError ? (
         <p
           id="chat-message-error"
-          className="mt-2 text-xs text-red-600 dark:text-red-400"
+          className="mt-1.5 px-1 text-xs text-red-600"
           role="alert"
         >
           {inlineError}
@@ -192,9 +221,9 @@ export function ChatMessageInput({
     <form
       action={sendMessageAction}
       onSubmit={handleSubmit}
-      className="shrink-0 border-t border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950"
+      className={chatComposerSurfaceClassName}
     >
-      <div className="flex items-end gap-3">
+      <div className="mx-auto flex w-full max-w-3xl items-end gap-2.5 sm:gap-3">
         <div className="min-w-0 flex-1">
           <label htmlFor="chat-message-body" className="sr-only">
             Message

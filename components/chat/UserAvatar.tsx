@@ -2,7 +2,7 @@ import { getUserDisplayLabel, type UserLabel } from "@/lib/users";
 
 type UserAvatarProps = {
   user: UserLabel | null | undefined;
-  size?: "sm" | "md" | "lg";
+  size?: "xs" | "sm" | "md" | "lg";
   className?: string;
   showActivityIndicator?: boolean;
   isRecentlyActive?: boolean;
@@ -14,6 +14,7 @@ type UserAvatarProps = {
 };
 
 const SIZE_CLASSES = {
+  xs: "h-8 w-8 text-xs",
   sm: "h-10 w-10 text-sm",
   md: "h-11 w-11 text-sm",
   lg: "h-14 w-14 text-base",

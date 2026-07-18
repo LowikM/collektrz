@@ -47,6 +47,7 @@ export function ChatWindow({
 
       <ChatMessageThread
         groups={groups}
+        otherUser={conversation.otherUser}
         messageSent={messageSent}
         pendingMessageBody={pendingMessageBody}
         onPendingMessageConsumed={() => setPendingMessageBody(null)}

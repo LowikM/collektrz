@@ -31,11 +31,11 @@ export function ChatHeader({
   const activityLabel = formatRecentActivity(lastActivity);
 
   return (
-    <header className="flex items-center gap-3 border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
+    <header className="flex items-center gap-3 border-b border-zinc-200/80 bg-white px-4 py-3.5 sm:px-6">
       {showMobileBack ? (
         <Link
           href="/messages"
-          className={`inline-flex rounded-xl border border-zinc-300 px-2.5 py-1.5 text-sm font-medium transition-colors hover:bg-zinc-50 lg:hidden dark:border-zinc-700 dark:hover:bg-zinc-900 ${chatFocusRingClassName}`}
+          className={`inline-flex rounded-xl border border-zinc-200 bg-white px-2.5 py-1.5 text-sm font-medium shadow-sm transition-all duration-200 hover:bg-zinc-50 active:scale-[0.98] lg:hidden ${chatFocusRingClassName}`}
           aria-label="Back to conversations"
         >
           ←
@@ -51,30 +51,31 @@ export function ChatHeader({
       />
 
       <div className="min-w-0 flex-1">
-        <h2 className="truncate text-base font-semibold tracking-tight">
+        <h2 className="truncate text-base font-semibold tracking-tight text-zinc-900">
           {getConversationDisplayName(otherUser)}
         </h2>
-        <p className="truncate text-xs text-zinc-600 dark:text-zinc-400">
-          {activityLabel}
-        </p>
+        <p className="truncate text-xs text-zinc-500">{activityLabel}</p>
       </div>
 
       <nav
         aria-label="Conversation actions"
         className="hidden flex-wrap justify-end gap-2 sm:flex"
       >
-        <Link href={`/users/${otherUser.id}`} className={chatActionButtonClassName}>
+        <Link
+          href={`/users/${otherUser.id}`}
+          className={`${chatActionButtonClassName} ${chatFocusRingClassName}`}
+        >
           View Profile
         </Link>
         <Link
           href={`/users/${otherUser.id}?view=collection`}
-          className={chatActionButtonClassName}
+          className={`${chatActionButtonClassName} ${chatFocusRingClassName}`}
         >
           View Collection
         </Link>
         <Link
           href={`/users/${otherUser.id}?view=wishlist`}
-          className={chatActionButtonClassName}
+          className={`${chatActionButtonClassName} ${chatFocusRingClassName}`}
         >
           View Wishlist
         </Link>
@@ -84,18 +85,21 @@ export function ChatHeader({
         aria-label="Conversation actions"
         className="flex flex-wrap gap-2 sm:hidden"
       >
-        <Link href={`/users/${otherUser.id}`} className={chatActionButtonClassName}>
+        <Link
+          href={`/users/${otherUser.id}`}
+          className={`${chatActionButtonClassName} ${chatFocusRingClassName}`}
+        >
           Profile
         </Link>
         <Link
           href={`/users/${otherUser.id}?view=collection`}
-          className={chatActionButtonClassName}
+          className={`${chatActionButtonClassName} ${chatFocusRingClassName}`}
         >
           Collection
         </Link>
         <Link
           href={`/users/${otherUser.id}?view=wishlist`}
-          className={chatActionButtonClassName}
+          className={`${chatActionButtonClassName} ${chatFocusRingClassName}`}
         >
           Wishlist
         </Link>

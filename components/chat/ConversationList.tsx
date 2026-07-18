@@ -7,7 +7,10 @@ import {
   NoConversationsEmptyState,
   SearchNoResultsEmptyState,
 } from "@/components/chat/ChatEmptyStates";
-import { chatFocusRingClassName } from "@/components/chat/chat-styles";
+import {
+  chatFocusRingClassName,
+  chatSidebarItemBaseClassName,
+} from "@/components/chat/chat-styles";
 import { UserAvatar } from "@/components/chat/UserAvatar";
 import {
   formatRecentActivity,
@@ -65,13 +68,13 @@ export function ConversationList({
   }, [selectedUserId, filteredConversations.length]);
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="border-b border-zinc-200 p-4 dark:border-zinc-800">
+    <div className="flex h-full min-h-0 flex-col bg-zinc-50/50">
+      <div className="border-b border-zinc-200/80 bg-white px-4 pb-4 pt-4">
         <h2 className="text-lg font-semibold tracking-tight">Messages</h2>
-        <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+        <p className="mt-0.5 text-sm text-zinc-500">
           Chat with collectors about trades and listings.
         </p>
-        <div className="mt-4">
+        <div className="mt-3.5">
           <label htmlFor="conversation-search" className="sr-only">
             Search conversations
           </label>
@@ -81,12 +84,12 @@ export function ConversationList({
             value={searchQuery}
             onChange={(event) => onSearchQueryChange(event.target.value)}
             placeholder="Search conversations..."
-            className={`w-full rounded-2xl border border-zinc-300 bg-white px-4 py-2.5 text-sm outline-none transition-colors focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-950 ${chatFocusRingClassName}`}
+            className={`w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm shadow-inner transition-all duration-200 placeholder:text-zinc-400 focus:border-zinc-300 focus:bg-white focus:shadow-sm ${chatFocusRingClassName}`}
           />
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-3">
+      <div className="min-h-0 flex-1 overflow-y-auto px-2 py-2 sm:px-3">
         {conversations.length === 0 ? (
           <NoConversationsEmptyState />
         ) : filteredConversations.length === 0 ? (
@@ -94,7 +97,7 @@ export function ConversationList({
             onClearSearch={() => onSearchQueryChange("")}
           />
         ) : (
-          <ul className="space-y-2" role="list">
+          <ul className="space-y-0.5" role="list">
             {filteredConversations.map((conversation) => {
               const isActive = selectedUserId === conversation.otherUserId;
               const hasUnread = conversation.unreadCount > 0;
@@ -114,12 +117,12 @@ export function ConversationList({
                   <Link
                     href={`/messages?with=${conversation.otherUserId}`}
                     aria-current={isActive ? "true" : undefined}
-                    className={`block rounded-2xl border px-3 py-3 transition-all duration-200 ${chatFocusRingClassName} ${
+                    className={`${chatSidebarItemBaseClassName} ${chatFocusRingClassName} ${
                       isActive
-                        ? "border-foreground bg-zinc-100 shadow-sm dark:bg-zinc-900"
+                        ? "border-l-[3px] border-l-foreground bg-white pl-[calc(0.875rem-3px)] shadow-sm"
                         : hasUnread
-                          ? "border-zinc-300 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900/70"
-                          : "border-transparent bg-transparent hover:border-zinc-200 hover:bg-zinc-50 dark:hover:border-zinc-800 dark:hover:bg-zinc-900/60"
+                          ? "bg-white/80 hover:bg-white hover:shadow-sm"
+                          : "hover:bg-white/70"
                     }`}
                   >
                     <div className="flex items-start gap-3">
@@ -134,17 +137,21 @@ export function ConversationList({
                       />
 
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-baseline justify-between gap-2">
                           <p
-                            className={`truncate text-sm ${
-                              hasUnread ? "font-bold" : "font-semibold"
+                            className={`min-w-0 truncate text-[15px] ${
+                              hasUnread ? "font-bold text-zinc-900" : "font-semibold text-zinc-800"
                             }`}
                           >
                             {getConversationDisplayName(conversation.otherUser)}
                           </p>
                           <time
                             dateTime={conversation.lastActivityAt}
-                            className="shrink-0 text-xs text-zinc-500 dark:text-zinc-400"
+                            className={`shrink-0 text-[11px] tabular-nums ${
+                              hasUnread
+                                ? "font-semibold text-foreground"
+                                : "text-zinc-400"
+                            }`}
                           >
                             {formatConversationTimestamp(
                               conversation.lastActivityAt,
@@ -152,12 +159,12 @@ export function ConversationList({
                           </time>
                         </div>
 
-                        <div className="mt-1 flex items-center justify-between gap-2">
+                        <div className="mt-0.5 flex items-center justify-between gap-2">
                           <p
-                            className={`truncate text-sm ${
+                            className={`min-w-0 truncate text-sm leading-snug ${
                               hasUnread
-                                ? "font-medium text-zinc-900 dark:text-zinc-100"
-                                : "text-zinc-600 dark:text-zinc-400"
+                                ? "font-medium text-zinc-800"
+                                : "text-zinc-500"
                             }`}
                           >
                             {getConversationPreview(
@@ -167,7 +174,7 @@ export function ConversationList({
                           </p>
                           {hasUnread ? (
                             <span
-                              className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-foreground px-1.5 text-[11px] font-semibold text-background"
+                              className="inline-flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full bg-foreground px-1 text-[10px] font-bold text-background shadow-sm"
                               aria-label={`${conversation.unreadCount} unread message${
                                 conversation.unreadCount === 1 ? "" : "s"
                               }`}
@@ -181,7 +188,7 @@ export function ConversationList({
                           ) : null}
                         </div>
 
-                        <p className="mt-1 truncate text-[11px] text-zinc-500 dark:text-zinc-500">
+                        <p className="mt-0.5 truncate text-[10px] text-zinc-400">
                           {activityLabel}
                         </p>
                       </div>

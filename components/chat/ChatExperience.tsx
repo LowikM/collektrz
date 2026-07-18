@@ -38,11 +38,11 @@ export function ChatExperience({
           <MessageStatusAlert messageSent={messageSent} error={error} />
         </div>
 
-        <div className="flex min-h-0 flex-1 overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+        <div className="flex min-h-0 flex-1 overflow-hidden rounded-3xl border border-zinc-200/80 bg-white shadow-lg">
           <aside
             className={`${
               mobileShowsChat ? "hidden lg:flex" : "flex"
-            } w-full min-w-0 flex-col border-r border-zinc-200 lg:w-[22rem] xl:w-[24rem] dark:border-zinc-800`}
+            } w-full min-w-0 flex-col border-r border-zinc-200/80 lg:w-[22rem] xl:w-[24rem]`}
           >
             <ConversationList
               conversations={conversations}
@@ -68,9 +68,11 @@ export function ChatExperience({
                 messageSent={messageSent}
               />
             ) : (
-              <NoSelectionEmptyState
-                invalidSelection={Boolean(selectedUserId && !selectedConversation)}
-              />
+              <div className="flex h-full min-h-0 flex-col bg-zinc-100">
+                <NoSelectionEmptyState
+                  invalidSelection={Boolean(selectedUserId && !selectedConversation)}
+                />
+              </div>
             )}
           </section>
         </div>
