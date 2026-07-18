@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import {
@@ -99,6 +100,12 @@ export default async function MyCollectionPage({
           <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
             Save cards and sealed products you own for faster listing later.
           </p>
+          <Link
+            href={`/users/${user.id}?tab=collection`}
+            className="mt-3 inline-flex text-sm font-medium text-zinc-700 hover:underline dark:text-zinc-300"
+          >
+            View public collection showcase →
+          </Link>
         </div>
 
         {pageError ? (

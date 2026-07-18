@@ -1,144 +1,129 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { ProfileQrCode } from "@/components/ProfileQrCode";
-import { VendorBadge } from "@/components/VendorBadge";
+import { ProfileExperience } from "@/components/profile/ProfileExperience";
 import {
-  formatMemberSince,
-  getUserDisplayLabel,
-  type PublicUserProfile,
-} from "@/lib/users";
+  loadProfilePageData,
+  resolveProfileTab,
+  type ProfileCollectionFilters,
+} from "@/lib/profile";
 import { getPublicProfileUrl } from "@/lib/site-url";
 import { createClient } from "@/lib/supabase/server";
+import { getCardImagesByIds } from "@/lib/pokemon-tcg";
 
 type PublicUserProfilePageProps = {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{
+    tab?: string;
+    view?: string;
+    event?: string;
+    page?: string;
+    q?: string;
+    kind?: string;
+    sort?: string;
+  }>;
 };
+
+function parseCollectionFilters(searchParams: {
+  page?: string;
+  q?: string;
+  kind?: string;
+  sort?: string;
+}): ProfileCollectionFilters {
+  const page = Number.parseInt(searchParams.page ?? "1", 10);
+
+  return {
+    page: Number.isFinite(page) && page > 0 ? page : 1,
+    q: searchParams.q,
+    kind:
+      searchParams.kind === "card" || searchParams.kind === "sealed"
+        ? searchParams.kind
+        : "all",
+    sort:
+      searchParams.sort === "oldest" ||
+      searchParams.sort === "alphabetical" ||
+      searchParams.sort === "recently_added" ||
+      searchParams.sort === "quantity"
+        ? searchParams.sort
+        : "newest",
+  };
+}
+
+function collectTcgApiCardIds(
+  data: NonNullable<Awaited<ReturnType<typeof loadProfilePageData>>>,
+) {
+  const ids = new Set<string>();
+
+  const add = (tcgApiCardId: string | null | undefined) => {
+    if (tcgApiCardId) {
+      ids.add(tcgApiCardId);
+    }
+  };
+
+  for (const item of data.featuredCollection) {
+    add(item.tcg_api_card_id);
+  }
+  for (const item of data.collectionItems) {
+    add(item.tcg_api_card_id);
+  }
+  for (const item of data.wishlistHighlights) {
+    add(item.tcg_api_card_id);
+  }
+  for (const item of data.wishlistItems) {
+    add(item.tcg_api_card_id);
+  }
+  for (const item of data.recentListings) {
+    add(item.tcg_api_card_id);
+  }
+  for (const item of data.listingItems) {
+    add(item.tcg_api_card_id);
+  }
+
+  return [...ids];
+}
 
 export default async function PublicUserProfilePage({
   params,
+  searchParams,
 }: PublicUserProfilePageProps) {
   const { id } = await params;
+  const resolvedSearchParams = await searchParams;
+  const activeTab = resolveProfileTab(
+    resolvedSearchParams.tab,
+    resolvedSearchParams.view,
+  );
+  const collectionFilters = parseCollectionFilters(resolvedSearchParams);
+
   const supabase = await createClient();
+  const {
+    data: { user: viewer },
+  } = await supabase.auth.getUser();
 
-  const { data: profile, error } = await supabase
-    .from("users")
-    .select(
-      "id, email, display_name, bio, location, favorite_pokemon, avatar_url, is_vendor, vendor_stand_number, created_at",
-    )
-    .eq("id", id)
-    .maybeSingle();
+  const profileData = await loadProfilePageData(supabase, id, viewer?.id ?? null, {
+    eventId: resolvedSearchParams.event ?? null,
+    collectionFilters,
+    activeTab,
+  });
 
-  if (error || !profile) {
+  if (!profileData) {
     notFound();
   }
 
-  const userProfile = profile as PublicUserProfile & {
-    is_vendor?: boolean;
-    vendor_stand_number?: string | null;
-  };
-  const profileUrl = getPublicProfileUrl(id);
-
-  const { count: activeListingsCount, error: listingsError } = await supabase
-    .from("listings")
-    .select("id", { count: "exact", head: true })
-    .eq("user_id", id)
-    .eq("status", "active");
+  const cardImagesById = await getCardImagesByIds(
+    collectTcgApiCardIds(profileData),
+  );
 
   return (
-    <div className="flex flex-1 justify-center px-4 py-12">
-      <div className="w-full max-w-lg space-y-6">
-        <Link
-          href="/events"
-          className="text-sm text-zinc-600 hover:underline dark:text-zinc-400"
-        >
-          ← Back to events
-        </Link>
-
-        <div className="rounded-xl border border-zinc-200 p-8 dark:border-zinc-800">
-          <div className="flex items-start gap-4">
-            {userProfile.avatar_url ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={userProfile.avatar_url}
-                alt=""
-                className="h-16 w-16 rounded-full object-cover"
-              />
-            ) : (
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-zinc-100 text-lg font-semibold text-zinc-600 dark:bg-zinc-900 dark:text-zinc-300">
-                {getUserDisplayLabel(userProfile).charAt(0).toUpperCase()}
-              </div>
-            )}
-
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-2xl font-semibold tracking-tight">
-                  {getUserDisplayLabel(userProfile)}
-                </h1>
-                {userProfile.is_vendor ? (
-                  <VendorBadge standNumber={userProfile.vendor_stand_number} />
-                ) : null}
-              </div>
-              <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-                {userProfile.email}
-              </p>
-            </div>
-          </div>
-
-          <dl className="mt-6 space-y-4 text-sm">
-            <div>
-              <dt className="font-medium text-zinc-500 dark:text-zinc-400">
-                Member since
-              </dt>
-              <dd className="mt-1">
-                {formatMemberSince(userProfile.created_at)}
-              </dd>
-            </div>
-
-            <div>
-              <dt className="font-medium text-zinc-500 dark:text-zinc-400">
-                Active listings
-              </dt>
-              <dd className="mt-1">
-                {listingsError
-                  ? "Could not load listing count."
-                  : (activeListingsCount ?? 0)}
-              </dd>
-            </div>
-
-            {userProfile.location ? (
-              <div>
-                <dt className="font-medium text-zinc-500 dark:text-zinc-400">
-                  Location
-                </dt>
-                <dd className="mt-1">{userProfile.location}</dd>
-              </div>
-            ) : null}
-
-            {userProfile.favorite_pokemon ? (
-              <div>
-                <dt className="font-medium text-zinc-500 dark:text-zinc-400">
-                  Favorite collectible
-                </dt>
-                <dd className="mt-1">{userProfile.favorite_pokemon}</dd>
-              </div>
-            ) : null}
-
-            {userProfile.bio ? (
-              <div>
-                <dt className="font-medium text-zinc-500 dark:text-zinc-400">
-                  Bio
-                </dt>
-                <dd className="mt-1 leading-6 whitespace-pre-wrap">
-                  {userProfile.bio}
-                </dd>
-              </div>
-            ) : null}
-          </dl>
-        </div>
-
-        <ProfileQrCode url={profileUrl} />
-      </div>
-    </div>
+    <ProfileExperience
+      data={profileData}
+      activeTab={activeTab}
+      userId={id}
+      profileUrl={getPublicProfileUrl(id)}
+      cardImagesById={cardImagesById}
+      collectionFilters={{
+        q: collectionFilters.q,
+        kind: collectionFilters.kind,
+        sort: collectionFilters.sort,
+      }}
+    />
   );
 }

@@ -15,6 +15,8 @@ export type PublicUserProfile = {
   favorite_pokemon: string | null;
   avatar_url: string | null;
   created_at: string;
+  is_vendor?: boolean;
+  vendor_stand_number?: string | null;
 };
 
 export type UserLabel = {
