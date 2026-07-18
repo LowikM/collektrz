@@ -2,9 +2,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { EventHero } from "@/components/EventHero";
+import { EventAttendeesSection } from "@/components/events/EventAttendeesSection";
 import { EventListingFilters } from "@/components/EventListingFilters";
 import { EventPersonalDashboard } from "@/components/EventPersonalDashboard";
 import { EventPresenceControls } from "@/components/EventPresenceControls";
+import { EventSocialSection } from "@/components/events/EventSocialSection";
+import { EventVendorsSection } from "@/components/events/EventVendorsSection";
 import { ListingInterest } from "@/components/ListingInterest";
 import { MessageStatusAlert } from "@/components/MessageStatusAlert";
 import { UserProfileLink } from "@/components/UserProfileLink";
@@ -19,9 +22,12 @@ import {
 } from "@/lib/collection-items";
 import {
   getListingOwnerVendor,
+  loadEventAttendees,
   loadEventPersonalDashboard,
   loadEventPresence,
+  loadEventSocialRecommendations,
   loadEventStats,
+  loadEventVendors,
   type EventRecord,
   type ListingOwnerVendor,
 } from "@/lib/event-experience";
@@ -114,13 +120,19 @@ export default async function EventDetailPage({
 
   const eventRecord = event as EventRecord;
 
-  const [stats, presence, personalDashboard] = await Promise.all([
-    loadEventStats(supabase, id),
-    user ? loadEventPresence(supabase, id, user.id) : Promise.resolve(null),
-    user
-      ? loadEventPersonalDashboard(supabase, id, user.id, eventRecord.name)
-      : Promise.resolve(null),
-  ]);
+  const [stats, presence, personalDashboard, attendees, vendors, socialRecommendations] =
+    await Promise.all([
+      loadEventStats(supabase, id),
+      user ? loadEventPresence(supabase, id, user.id) : Promise.resolve(null),
+      user
+        ? loadEventPersonalDashboard(supabase, id, user.id, eventRecord.name)
+        : Promise.resolve(null),
+      loadEventAttendees(supabase, id, user?.id ?? null),
+      loadEventVendors(supabase, id),
+      user
+        ? loadEventSocialRecommendations(supabase, id, user.id)
+        : Promise.resolve([]),
+    ]);
 
   let listingsQuery = supabase
     .from("listings")
@@ -226,6 +238,17 @@ export default async function EventDetailPage({
             </Link>
           </section>
         )}
+
+        <EventAttendeesSection eventId={id} attendees={attendees} />
+
+        <EventVendorsSection eventId={id} vendors={vendors} />
+
+        {user ? (
+          <EventSocialSection
+            eventId={id}
+            recommendations={socialRecommendations}
+          />
+        ) : null}
 
         <section className="space-y-4">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
