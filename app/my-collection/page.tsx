@@ -97,20 +97,30 @@ export default async function MyCollectionPage({
       <div className={`w-full space-y-8 ${maxWidthClass}`}>
         <div className="space-y-5">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-              My Collection
-            </h1>
-            <p className="mt-2 max-w-2xl text-sm text-zinc-600 dark:text-zinc-400">
-              {activeView === "portfolio"
-                ? "Portfolio insights built from the items you already track — organized for showcase and trading."
-                : "Save cards and sealed products you own. Mark items public to share them on your collector profile."}
-            </p>
-            <Link
-              href={`/users/${user.id}?tab=collection`}
-              className="mt-3 inline-flex min-h-11 items-center text-sm font-medium text-zinc-700 hover:underline dark:text-zinc-300"
-            >
-              View public collection showcase →
-            </Link>
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+                  My Collection
+                </h1>
+                <p className="mt-2 max-w-2xl text-sm text-zinc-600 dark:text-zinc-400">
+                  {activeView === "portfolio"
+                    ? "Portfolio insights built from the items you already track — organized for showcase and trading."
+                    : "Save cards and sealed products you own. Mark items public to share them on your collector profile."}
+                </p>
+                <Link
+                  href={`/users/${user.id}?tab=collection`}
+                  className="mt-3 inline-flex min-h-11 items-center text-sm font-medium text-zinc-700 hover:underline dark:text-zinc-300"
+                >
+                  View public collection showcase →
+                </Link>
+              </div>
+              <Link
+                href="/my-collection/add"
+                className="inline-flex min-h-11 items-center rounded-xl bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-opacity hover:opacity-90 dark:bg-zinc-100 dark:text-zinc-900"
+              >
+                Fast Add
+              </Link>
+            </div>
           </div>
 
           <Suspense fallback={<div className="h-11" aria-hidden="true" />}>
@@ -166,10 +176,20 @@ export default async function MyCollectionPage({
         ) : (
           <>
             <section className="rounded-xl border border-zinc-200 p-4 dark:border-zinc-800">
-              <h2 className="text-lg font-semibold tracking-tight">
-                Add to collection
-              </h2>
-              <AddCollectionItemForm action={createCollectionItem} />
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h2 className="text-lg font-semibold tracking-tight">
+                  Add to collection
+                </h2>
+                <Link
+                  href="/my-collection/add"
+                  className="inline-flex min-h-11 items-center rounded-xl border border-zinc-300 px-4 py-2 text-sm font-medium hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
+                >
+                  Fast Add card
+                </Link>
+              </div>
+              <div className="mt-4">
+                <AddCollectionItemForm action={createCollectionItem} />
+              </div>
             </section>
 
             <section className="space-y-4">

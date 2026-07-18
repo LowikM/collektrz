@@ -29,10 +29,10 @@ export function PortfolioExperience({
       <ProfileEmptyState
         title="Your portfolio is empty"
         description="Start adding items to see your portfolio take shape — breakdowns, top sets, and showcase readiness appear as your collection grows."
-        actionLabel="Add to collection"
-        actionHref="/my-collection?view=collection"
-        secondaryActionLabel="View public profile"
-        secondaryActionHref={`/users/${userId}?tab=overview`}
+        actionLabel="Fast Add card"
+        actionHref="/my-collection/add"
+        secondaryActionLabel="Add manually"
+        secondaryActionHref="/my-collection?view=collection"
         icon="🃏"
       />
     );

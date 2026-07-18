@@ -83,8 +83,8 @@ export function RecentAdditions({ items, cardImagesById }: RecentAdditionsProps)
       <ProfileSectionHeader
         title="Recent additions"
         description="The newest pieces added to your collection."
-        actionLabel="View full collection"
-        actionHref="/my-collection?view=collection"
+        actionLabel="Fast Add"
+        actionHref="/my-collection/add"
       />
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {items.map((item) => (
