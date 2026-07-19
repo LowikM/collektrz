@@ -103,6 +103,69 @@ export function hasActiveListingFilters(filters: ListingFilters) {
   );
 }
 
+type FilterableListing = {
+  type: ListingType;
+  card_name: string;
+  set_name: string | null;
+  card_number: string | null;
+  language: string | null;
+  condition: string | null;
+  tcg_api_card_id: string | null;
+  created_at: string;
+};
+
+export function filterListingsInMemory<T extends FilterableListing>(
+  listings: T[],
+  filters: ListingFilters,
+): T[] {
+  let result = listings;
+
+  if (filters.type) {
+    result = result.filter((listing) => listing.type === filters.type);
+  }
+
+  if (filters.language) {
+    result = result.filter((listing) => listing.language === filters.language);
+  }
+
+  if (filters.condition) {
+    result = result.filter((listing) => listing.condition === filters.condition);
+  }
+
+  if (filters.official) {
+    result = result.filter((listing) => listing.tcg_api_card_id !== null);
+  }
+
+  if (filters.q) {
+    const query = filters.q.toLowerCase();
+    result = result.filter((listing) => {
+      const haystack = [
+        listing.card_name,
+        listing.set_name,
+        listing.card_number,
+        listing.language,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      return haystack.includes(query);
+    });
+  }
+
+  const sort = LISTING_SORT_OPTIONS[filters.sort];
+
+  return [...result].sort((a, b) => {
+    const left = a[sort.column as keyof FilterableListing];
+    const right = b[sort.column as keyof FilterableListing];
+    const leftValue = typeof left === "string" ? left : "";
+    const rightValue = typeof right === "string" ? right : "";
+    const comparison = leftValue.localeCompare(rightValue);
+
+    return sort.ascending ? comparison : -comparison;
+  });
+}
+
 export function buildListingFilterSearchParams(
   filters: ListingFilters,
 ): URLSearchParams {

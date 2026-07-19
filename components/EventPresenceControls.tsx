@@ -16,7 +16,10 @@ export function EventPresenceControls({
   const updatePresence = updateEventPresence.bind(null, eventId);
 
   return (
-    <section className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900/50">
+    <section
+      id="event-presence"
+      className="scroll-mt-24 rounded-2xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900/50"
+    >
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-sm font-semibold tracking-tight">Your presence</h2>

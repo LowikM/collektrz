@@ -1,3 +1,4 @@
+import { cardsShareIdentity } from "@/lib/event-card-identity";
 import {
   findUserTradeMatches,
   getListingCardKey,
@@ -62,6 +63,15 @@ export type EventPersonalDashboard = {
   bringingListings: EventListingSummary[];
   wishlistMatches: WishlistMatchSummary[];
   traderMatches: UserTradeMatch[];
+  /** Viewer wishlist rows for intelligence matching (owner-only). */
+  viewerWishlist: EventViewerWishlistItem[];
+};
+
+export type EventViewerWishlistItem = {
+  card_name: string;
+  card_ref: string;
+  set_name: string | null;
+  tcg_api_card_id: string | null;
 };
 
 type ListingRow = MatchListing & {
@@ -96,15 +106,7 @@ function listingsMatchWishlist(
   listing: MatchListing,
   wishlistItem: WishlistRow,
 ) {
-  if (
-    listing.tcg_api_card_id &&
-    wishlistItem.tcg_api_card_id &&
-    listing.tcg_api_card_id === wishlistItem.tcg_api_card_id
-  ) {
-    return true;
-  }
-
-  return listing.card_ref === wishlistItem.card_ref;
+  return cardsShareIdentity(listing, wishlistItem);
 }
 
 export async function loadEventStats(
@@ -284,6 +286,12 @@ export async function loadEventPersonalDashboard(
     bringingListings,
     wishlistMatches: wishlistMatches.slice(0, 8),
     traderMatches,
+    viewerWishlist: wishlistItems.map((item) => ({
+      card_name: item.card_name,
+      card_ref: item.card_ref,
+      set_name: item.set_name,
+      tcg_api_card_id: item.tcg_api_card_id,
+    })),
   };
 }
 

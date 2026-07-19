@@ -3,10 +3,10 @@ import { notFound } from "next/navigation";
 
 import { EventHero } from "@/components/EventHero";
 import { EventAttendeesSection } from "@/components/events/EventAttendeesSection";
+import { EventIntelligenceSections } from "@/components/events/intelligence/EventIntelligenceSections";
 import { EventListingFilters } from "@/components/EventListingFilters";
 import { EventPersonalDashboard } from "@/components/EventPersonalDashboard";
 import { EventPresenceControls } from "@/components/EventPresenceControls";
-import { EventSocialSection } from "@/components/events/EventSocialSection";
 import { EventVendorsSection } from "@/components/events/EventVendorsSection";
 import { ListingInterest } from "@/components/ListingInterest";
 import { MessageStatusAlert } from "@/components/MessageStatusAlert";
@@ -27,18 +27,23 @@ import {
   loadEventPresence,
   loadEventStats,
   loadEventVendors,
-  rankEventSocialRecommendations,
   type EventRecord,
   type ListingOwnerVendor,
 } from "@/lib/event-experience";
 import {
-  escapeIlikePattern,
+  buildEventIntelligenceSafe,
+  type EventIntelligence,
+  type EventListingIntelRow,
+} from "@/lib/event-intelligence";
+import {
+  filterListingsInMemory,
   hasActiveListingFilters,
-  LISTING_SORT_OPTIONS,
   parseListingFilters,
 } from "@/lib/listing-filters";
 import { getCardImagesByIds } from "@/lib/pokemon-tcg";
 import { collectTcgApiCardIdsFromResults } from "@/lib/match-score";
+import { getEventTimingState } from "@/lib/event-timing";
+import { logEventIntelligencePhase } from "@/lib/event-intelligence-log";
 import { createClient } from "@/lib/supabase/server";
 
 type EventDetailPageProps = {
@@ -52,6 +57,7 @@ type Listing = {
   user_id: string;
   type: "want" | "trade" | "sale";
   card_name: string;
+  card_ref: string | null;
   trade_for: string | null;
   status: string;
   condition: string | null;
@@ -73,16 +79,60 @@ const TYPE_LABELS: Record<Listing["type"], string> = {
   sale: "Sale",
 };
 
-function buildListingSearchOrFilter(query: string) {
-  const pattern = `%${escapeIlikePattern(query)}%`;
-  const quotedPattern = `"${pattern.replace(/"/g, '""')}"`;
+const EVENT_LISTINGS_SELECT =
+  "id, event_id, user_id, type, card_name, card_ref, trade_for, status, condition, set_name, notes, language, tcg_api_card_id, card_number, set_id, collection_item_id, created_at, updated_at, users(id, display_name, email, is_vendor, vendor_stand_number)";
 
-  return [
-    `card_name.ilike.${quotedPattern}`,
-    `set_name.ilike.${quotedPattern}`,
-    `card_number.ilike.${quotedPattern}`,
-    `language.ilike.${quotedPattern}`,
-  ].join(",");
+function isListingRow(value: unknown): value is Listing {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const row = value as Partial<Listing>;
+  return typeof row.id === "string" && typeof row.card_name === "string";
+}
+
+function collectIntelligenceTcgIds(intelligence: EventIntelligence): string[] {
+  const ids = new Set<string>();
+
+  for (const opportunity of intelligence.wishlistOpportunities) {
+    if (opportunity.tcgApiCardId) {
+      ids.add(opportunity.tcgApiCardId);
+    }
+  }
+
+  for (const listing of intelligence.recentEventListings) {
+    if (listing.tcgApiCardId) {
+      ids.add(listing.tcgApiCardId);
+    }
+  }
+
+  for (const tcgId of collectTcgApiCardIdsFromResults(
+    intelligence.peopleToMeet.map((profile) => profile.matchScoreResult),
+  )) {
+    ids.add(tcgId);
+  }
+
+  return [...ids];
+}
+
+function collectIntelligenceCollectionItemIds(
+  intelligence: EventIntelligence,
+): string[] {
+  const ids = new Set<string>();
+
+  for (const opportunity of intelligence.wishlistOpportunities) {
+    if (opportunity.collectionItemId) {
+      ids.add(opportunity.collectionItemId);
+    }
+  }
+
+  for (const listing of intelligence.recentEventListings) {
+    if (listing.collectionItemId) {
+      ids.add(listing.collectionItemId);
+    }
+  }
+
+  return [...ids];
 }
 
 export default async function EventDetailPage({
@@ -120,8 +170,10 @@ export default async function EventDetailPage({
   }
 
   const eventRecord = event as EventRecord;
+  const eventTimingState = getEventTimingState(eventRecord);
+  const pageStarted = Date.now();
 
-  const [stats, presence, personalDashboard, attendees, vendors] =
+  const [stats, presence, personalDashboard, attendees, vendors, intelListingsResult] =
     await Promise.all([
       loadEventStats(supabase, id),
       user ? loadEventPresence(supabase, id, user.id) : Promise.resolve(null),
@@ -130,65 +182,88 @@ export default async function EventDetailPage({
         : Promise.resolve(null),
       loadEventAttendees(supabase, id, user?.id ?? null),
       loadEventVendors(supabase, id),
+      supabase
+        .from("listings")
+        .select(EVENT_LISTINGS_SELECT)
+        .eq("event_id", id)
+        .eq("status", "active")
+        .order("created_at", { ascending: false }),
     ]);
 
-  const socialRecommendations = user
-    ? rankEventSocialRecommendations(attendees, user.id, id)
-    : [];
+  if (intelListingsResult.error) {
+    logEventIntelligencePhase("listings", "failure", {
+      eventId: id.slice(0, 8),
+      failureCategory: "supabase",
+      supabaseCode: intelListingsResult.error.code,
+    });
+  }
 
-  const socialMatchScoreImages = await getCardImagesByIds(
-    collectTcgApiCardIdsFromResults(
-      socialRecommendations.map((profile) => profile.matchScoreResult),
-    ),
+  const allEventListings = ((intelListingsResult.data ?? []) as Listing[]).filter(
+    isListingRow,
   );
+  const eventListings = allEventListings as EventListingIntelRow[];
 
-  let listingsQuery = supabase
-    .from("listings")
-    .select(
-      "id, event_id, user_id, type, card_name, trade_for, status, condition, set_name, notes, language, tcg_api_card_id, card_number, set_id, collection_item_id, created_at, updated_at, users(id, display_name, email, is_vendor, vendor_stand_number)",
-    )
-    .eq("event_id", id)
-    .eq("status", "active");
-
-  if (filters.type) {
-    listingsQuery = listingsQuery.eq("type", filters.type);
-  }
-
-  if (filters.language) {
-    listingsQuery = listingsQuery.eq("language", filters.language);
-  }
-
-  if (filters.condition) {
-    listingsQuery = listingsQuery.eq("condition", filters.condition);
-  }
-
-  if (filters.official) {
-    listingsQuery = listingsQuery.not("tcg_api_card_id", "is", null);
-  }
-
-  if (filters.q) {
-    listingsQuery = listingsQuery.or(buildListingSearchOrFilter(filters.q));
-  }
-
-  const sort = LISTING_SORT_OPTIONS[filters.sort];
-  listingsQuery = listingsQuery.order(sort.column, {
-    ascending: sort.ascending,
+  const intelligence = buildEventIntelligenceSafe({
+    eventId: id,
+    viewerUserId: user?.id ?? null,
+    stats,
+    presence,
+    personalDashboard,
+    attendees,
+    vendors,
+    eventListings,
+    eventTimingState,
   });
 
-  const { data: listings, error: listingsError } = await listingsQuery;
+  const activeListings = filterListingsInMemory(allEventListings, filters);
+  const listingsError = intelListingsResult.error;
+  const marketplaceTcgIds = activeListings
+    .map((listing) => listing.tcg_api_card_id)
+    .filter((listingId): listingId is string => Boolean(listingId));
+  const marketplaceCollectionItemIds = activeListings
+    .map((listing) => listing.collection_item_id)
+    .filter((listingId): listingId is string => Boolean(listingId));
 
-  const activeListings = (listings ?? []) as Listing[];
-  const cardImagesById = await getCardImagesByIds(
-    activeListings
-      .map((listing) => listing.tcg_api_card_id)
-      .filter((listingId): listingId is string => Boolean(listingId)),
-  );
-  const collectionItemImagesById = await getCollectionItemImageUrlsByIds(
-    supabase,
-    activeListings
-      .map((listing) => listing.collection_item_id)
-      .filter((listingId): listingId is string => Boolean(listingId)),
-  );
+  const [cardImagesResult, collectionImagesResult] = await Promise.allSettled([
+    getCardImagesByIds([
+      ...new Set([
+        ...marketplaceTcgIds,
+        ...collectIntelligenceTcgIds(intelligence),
+      ]),
+    ]),
+    getCollectionItemImageUrlsByIds(supabase, [
+      ...new Set([
+        ...marketplaceCollectionItemIds,
+        ...collectIntelligenceCollectionItemIds(intelligence),
+      ]),
+    ]),
+  ]);
+
+  const cardImagesById =
+    cardImagesResult.status === "fulfilled"
+      ? cardImagesResult.value
+      : new Map<string, { small: string; large: string }>();
+  const collectionItemImagesById =
+    collectionImagesResult.status === "fulfilled"
+      ? collectionImagesResult.value
+      : new Map<string, string>();
+
+  if (cardImagesResult.status === "rejected") {
+    logEventIntelligencePhase("images", "failure", {
+      eventId: id.slice(0, 8),
+      failureCategory: "images",
+    });
+  }
+
+  logEventIntelligencePhase("page", "success", {
+    eventId: id.slice(0, 8),
+    durationMs: Date.now() - pageStarted,
+    inputRows: {
+      listings: allEventListings.length,
+      attendees: attendees.length,
+      vendors: vendors.length,
+    },
+  });
   const listingIds = activeListings.map((listing) => listing.id);
 
   const interestCountByListing = new Map<string, number>();
@@ -229,41 +304,17 @@ export default async function EventDetailPage({
             userId={user.id}
             dashboard={personalDashboard}
           />
-        ) : (
-          <section className="rounded-2xl border border-dashed border-zinc-300 px-6 py-8 text-center dark:border-zinc-700">
-            <h2 className="text-lg font-semibold tracking-tight">
-              Sign in for your personal event dashboard
-            </h2>
-            <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-              Track listings you&apos;re bringing, wishlist matches, and trader
-              overlap for this event.
-            </p>
-            <Link
-              href="/login"
-              className="mt-4 inline-flex rounded-xl bg-foreground px-4 py-2 text-sm font-medium text-background transition-opacity hover:opacity-90"
-            >
-              Sign in
-            </Link>
-          </section>
-        )}
-
-        <EventAttendeesSection
-          eventId={id}
-          attendees={attendees}
-          showMatchScore={Boolean(user)}
-        />
-
-        <EventVendorsSection eventId={id} vendors={vendors} />
-
-        {user ? (
-          <EventSocialSection
-            eventId={id}
-            recommendations={socialRecommendations}
-            cardImagesById={socialMatchScoreImages}
-          />
         ) : null}
 
-        <section className="space-y-4">
+        <EventIntelligenceSections
+          eventId={id}
+          intelligence={intelligence}
+          isLoggedIn={Boolean(user)}
+          cardImagesById={cardImagesById}
+          collectionItemImagesById={collectionItemImagesById}
+        />
+
+        <section id="event-marketplace" className="scroll-mt-24 space-y-4">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <h2 className="text-xl font-semibold tracking-tight">Marketplace</h2>
@@ -315,7 +366,8 @@ export default async function EventDetailPage({
               className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
               role="alert"
             >
-              Could not load listings: {listingsError.message}
+              Marketplace listings are temporarily unavailable. Please refresh
+              the page or try again shortly.
             </p>
           ) : activeListings.length === 0 ? (
             <p className="rounded-2xl border border-dashed border-zinc-300 px-6 py-12 text-center text-sm text-zinc-600 dark:border-zinc-700 dark:text-zinc-400">
@@ -334,8 +386,8 @@ export default async function EventDetailPage({
                 const owner = getListingOwnerVendor(listing.users);
 
                 return (
-                  <li key={listing.id}>
-                    <article className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+                  <li key={listing.id} id={`listing-${listing.id}`}>
+                    <article className="scroll-mt-24 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
                       <div className="flex gap-3">
                         <ListingCardThumbnail
                           imageUrl={imageUrl}
@@ -437,6 +489,15 @@ export default async function EventDetailPage({
             </ul>
           )}
         </section>
+
+        <EventAttendeesSection
+          eventId={id}
+          attendees={attendees}
+          showMatchScore={Boolean(user)}
+          excludeUserIds={intelligence.highlightedPeopleIds}
+        />
+
+        <EventVendorsSection eventId={id} vendors={vendors} />
       </div>
     </div>
   );

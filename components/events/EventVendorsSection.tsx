@@ -71,7 +71,7 @@ export function EventVendorsSection({
 }: EventVendorsSectionProps) {
   if (vendors.length === 0) {
     return (
-      <section className="space-y-4">
+      <section id="event-vendors" className="scroll-mt-24 space-y-4">
         <EventSectionHeader
           eyebrow="Marketplace"
           title="Vendor Stands"
@@ -89,7 +89,7 @@ export function EventVendorsSection({
   }
 
   return (
-    <section className="space-y-4">
+    <section id="event-vendors" className="scroll-mt-24 space-y-4">
       <EventSectionHeader
         eyebrow="Marketplace"
         title="Vendor Stands"

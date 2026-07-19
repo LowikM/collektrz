@@ -13,6 +13,7 @@ type EventAttendeesSectionProps = {
   eventId: string;
   attendees: EventCollectorProfile[];
   showMatchScore?: boolean;
+  excludeUserIds?: string[];
 };
 
 /**
@@ -23,8 +24,12 @@ export function EventAttendeesSection({
   eventId,
   attendees,
   showMatchScore = false,
+  excludeUserIds = [],
 }: EventAttendeesSectionProps) {
-  const preview = attendees.slice(0, ATTENDEE_PREVIEW_LIMIT);
+  const excluded = new Set(excludeUserIds);
+  const preview = attendees
+    .filter((collector) => !excluded.has(collector.userId))
+    .slice(0, ATTENDEE_PREVIEW_LIMIT);
   const showViewAll = attendees.length > VIEW_ALL_ATTENDEES_THRESHOLD;
 
   if (attendees.length === 0) {
