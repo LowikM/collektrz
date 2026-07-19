@@ -7,7 +7,7 @@ export const USER_LOAD_ERROR = {
     "We couldn't load your collection right now. Please try again.",
   wishlist: "We couldn't load your wishlist right now. Please try again.",
   portfolio:
-    "We couldn't load your portfolio right now. Please try again.",
+    "We couldn't load your portfolio right now. Your collection is safe. Please try again.",
 } as const;
 
 export const SCHEMA_DRIFT_BANNER =

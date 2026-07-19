@@ -87,3 +87,57 @@ export function percentOf(part: number, total: number): number {
 
   return Math.round((part / total) * 1000) / 10;
 }
+
+/** Coerce quantity from DB (null/string) without throwing. Minimum 0. */
+export function safeQuantity(value: unknown): number {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return Math.max(0, Math.trunc(value));
+  }
+
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number.parseInt(value, 10);
+    if (Number.isFinite(parsed)) {
+      return Math.max(0, parsed);
+    }
+  }
+
+  return 0;
+}
+
+/** Normalize item_kind; unknown values count as cards for aggregation. */
+export function safeItemKind(value: unknown): "card" | "sealed" {
+  return value === "sealed" ? "sealed" : "card";
+}
+
+export function safeVisibility(value: unknown): "public" | "private" {
+  return value === "public" ? "public" : "private";
+}
+
+export function safeBoolean(value: unknown): boolean {
+  return value === true;
+}
+
+export function safeOptionalText(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+export function safeCreatedAt(value: unknown): string {
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Date.parse(value);
+    if (!Number.isNaN(parsed)) {
+      return value;
+    }
+  }
+
+  return new Date(0).toISOString();
+}
+
+export function safeCardRef(value: unknown): string {
+  const text = safeOptionalText(value);
+  return text ?? "unknown-ref";
+}

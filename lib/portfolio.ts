@@ -17,8 +17,19 @@ import {
   normalizeRarity,
   normalizeSetName,
   percentOf,
+  safeBoolean,
+  safeCardRef,
+  safeCreatedAt,
+  safeItemKind,
+  safeOptionalText,
+  safeQuantity,
+  safeVisibility,
   UNKNOWN_SET_LABEL,
 } from "@/lib/portfolio-normalize";
+import {
+  logPortfolioPhase,
+  serializeLoadError,
+} from "@/lib/portfolio-log";
 
 /** Minimal row shape for in-memory portfolio aggregation. */
 export type PortfolioCollectionRow = {
@@ -49,8 +60,8 @@ export type PortfolioTotals = {
   publicItems: number;
   privateItems: number;
   featuredItems: number;
-  wishlistCount: number;
-  activeListingsCount: number;
+  wishlistCount: number | null;
+  activeListingsCount: number | null;
 };
 
 export type PortfolioCategoryBreakdown = {
@@ -118,6 +129,13 @@ export const PORTFOLIO_SELECT = `${COLLECTION_ITEM_BASE_SELECT}, ${COLLECTION_IT
 
 export const PORTFOLIO_SELECT_LEGACY = COLLECTION_ITEM_BASE_SELECT;
 
+/** Minimal columns required for in-memory portfolio aggregation. */
+export const PORTFOLIO_AGGREGATION_SELECT =
+  "id, item_kind, card_name, card_ref, set_name, condition, notes, quantity, tcg_api_card_id, image_url, visibility, is_featured, created_at";
+
+export const PORTFOLIO_AGGREGATION_SELECT_LEGACY =
+  "id, item_kind, card_name, card_ref, set_name, condition, notes, quantity, tcg_api_card_id, image_url, created_at";
+
 export type PortfolioLoadResult =
   | {
       ok: true;
@@ -155,47 +173,142 @@ export async function loadPortfolioDataSafe(
   supabase: SupabaseClient,
   userId: string,
 ): Promise<PortfolioLoadResult> {
-  const [
-    collectionResult,
-    { count: wishlistCount, error: wishlistCountError },
-    { count: activeListingsCount, error: listingsCountError },
-  ] = await Promise.all([
-    loadPortfolioCollectionRows(supabase, userId),
-    supabase
-      .from("wishlist_items")
-      .select("id", { count: "exact", head: true })
-      .eq("user_id", userId),
-    supabase
-      .from("listings")
-      .select("id", { count: "exact", head: true })
-      .eq("user_id", userId)
-      .eq("status", "active"),
-  ]);
+  logPortfolioPhase("auth", "success", { userId });
 
-  if (!collectionResult.ok) {
+  try {
+    const collectionResult = await loadPortfolioCollectionRows(supabase, userId);
+
+    if (!collectionResult.ok) {
+      return {
+        ok: false,
+        userMessage: collectionResult.userMessage,
+        schemaDrift: collectionResult.schemaDrift,
+      };
+    }
+
+    const [wishlistCountResult, listingsCountResult] = await Promise.allSettled([
+      supabase
+        .from("wishlist_items")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", userId),
+      supabase
+        .from("listings")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", userId)
+        .eq("status", "active"),
+    ]);
+
+    const wishlistCount = resolveOptionalCount(
+      wishlistCountResult,
+      "wishlist-count",
+      userId,
+    );
+    const activeListingsCount = resolveOptionalCount(
+      listingsCountResult,
+      "listings-count",
+      userId,
+    );
+
+    let data: PortfolioData;
+
+    try {
+      data = buildPortfolioData(
+        collectionResult.rows,
+        wishlistCount,
+        activeListingsCount,
+      );
+      logPortfolioPhase("aggregation", "success", {
+        userId,
+        rowCount: collectionResult.rows.length,
+      });
+    } catch (error) {
+      logPortfolioPhase("aggregation", "failure", {
+        userId,
+        rowCount: collectionResult.rows.length,
+        ...serializeLoadError(error),
+      });
+      return {
+        ok: false,
+        userMessage: getUserFacingLoadError("portfolio", error),
+        schemaDrift: collectionResult.schemaDrift,
+      };
+    }
+
+    return {
+      ok: true,
+      schemaDrift: collectionResult.schemaDrift,
+      data,
+    };
+  } catch (error) {
+    logPortfolioPhase("load", "failure", {
+      userId,
+      ...serializeLoadError(error),
+    });
     return {
       ok: false,
-      userMessage: collectionResult.userMessage,
-      schemaDrift: collectionResult.schemaDrift,
+      userMessage: getUserFacingLoadError("portfolio", error),
+      schemaDrift: false,
     };
   }
+}
 
-  if (wishlistCountError && !isMissingColumnError(wishlistCountError)) {
-    logDatabaseError("portfolio.wishlist-count", wishlistCountError, { userId });
+function resolveOptionalCount(
+  result: PromiseSettledResult<{
+    count: number | null;
+    error: unknown;
+  }>,
+  phase: string,
+  userId: string,
+): number | null {
+  if (result.status === "rejected") {
+    logPortfolioPhase(phase, "failure", {
+      userId,
+      ...serializeLoadError(result.reason),
+    });
+    return null;
   }
 
-  if (listingsCountError) {
-    logDatabaseError("portfolio.listings-count", listingsCountError, { userId });
+  const { count, error } = result.value;
+
+  if (error) {
+    if (!isMissingColumnError(error)) {
+      logDatabaseError(`portfolio.${phase}`, error, { userId });
+    }
+
+    logPortfolioPhase(phase, "failure", {
+      userId,
+      ...serializeLoadError(error),
+    });
+    return null;
   }
 
+  logPortfolioPhase(phase, "success", {
+    userId,
+    rowCount: count ?? 0,
+  });
+  return count ?? 0;
+}
+
+export function normalizePortfolioRow(
+  row: Record<string, unknown>,
+): PortfolioCollectionRow {
+  const cardRef = safeCardRef(row.card_ref);
   return {
-    ok: true,
-    schemaDrift: collectionResult.schemaDrift,
-    data: buildPortfolioData(
-      collectionResult.rows,
-      wishlistCount ?? 0,
-      activeListingsCount ?? 0,
-    ),
+    id: row.id != null ? String(row.id) : `missing-${cardRef}`,
+    item_kind: safeItemKind(row.item_kind),
+    card_name: safeOptionalText(row.card_name) ?? "Unknown item",
+    card_ref: safeCardRef(row.card_ref),
+    set_name: safeOptionalText(row.set_name),
+    condition: safeOptionalText(row.condition),
+    notes: safeOptionalText(row.notes),
+    quantity: safeQuantity(row.quantity),
+    tcg_api_card_id: safeOptionalText(row.tcg_api_card_id),
+    card_number: safeOptionalText(row.card_number),
+    image_url: safeOptionalText(row.image_url),
+    sealed_product_type: safeOptionalText(row.sealed_product_type),
+    visibility: safeVisibility(row.visibility),
+    is_featured: safeBoolean(row.is_featured),
+    created_at: safeCreatedAt(row.created_at),
   };
 }
 
@@ -216,29 +329,44 @@ async function loadPortfolioCollectionRows(
 > {
   const full = await supabase
     .from("collection_items")
-    .select(PORTFOLIO_SELECT)
+    .select(PORTFOLIO_AGGREGATION_SELECT)
     .eq("user_id", userId)
     .order("created_at", { ascending: false });
 
   if (!full.error) {
+    logPortfolioPhase("collection-rows", "success", {
+      userId,
+      rowCount: full.data?.length ?? 0,
+    });
     return {
       ok: true,
-      rows: (full.data ?? []) as PortfolioCollectionRow[],
+      rows: (full.data ?? []).map((row) =>
+        normalizePortfolioRow(row as Record<string, unknown>),
+      ),
       schemaDrift: false,
     };
   }
 
   if (isMissingColumnError(full.error)) {
     logDatabaseError("portfolio.collection-items", full.error, { userId });
+    logPortfolioPhase("collection-rows", "failure", {
+      userId,
+      ...serializeLoadError(full.error),
+      fallback: "legacy-select",
+    });
 
     const legacy = await supabase
       .from("collection_items")
-      .select(PORTFOLIO_SELECT_LEGACY)
+      .select(PORTFOLIO_AGGREGATION_SELECT_LEGACY)
       .eq("user_id", userId)
       .order("created_at", { ascending: false });
 
     if (legacy.error) {
       logDatabaseError("portfolio.collection-items-legacy", legacy.error, { userId });
+      logPortfolioPhase("collection-rows-legacy", "failure", {
+        userId,
+        ...serializeLoadError(legacy.error),
+      });
       return {
         ok: false,
         userMessage: getUserFacingLoadError("portfolio", legacy.error),
@@ -246,16 +374,25 @@ async function loadPortfolioCollectionRows(
       };
     }
 
+    logPortfolioPhase("collection-rows-legacy", "success", {
+      userId,
+      rowCount: legacy.data?.length ?? 0,
+    });
+
     return {
       ok: true,
-      rows: applyCollectionPrivacyDefaults(
-        legacy.data ?? [],
-      ) as PortfolioCollectionRow[],
+      rows: applyCollectionPrivacyDefaults(legacy.data ?? []).map((row) =>
+        normalizePortfolioRow(row as Record<string, unknown>),
+      ),
       schemaDrift: true,
     };
   }
 
   logDatabaseError("portfolio.collection-items", full.error, { userId });
+  logPortfolioPhase("collection-rows", "failure", {
+    userId,
+    ...serializeLoadError(full.error),
+  });
   return {
     ok: false,
     userMessage: getUserFacingLoadError("portfolio", full.error),
@@ -265,12 +402,16 @@ async function loadPortfolioCollectionRows(
 
 export function buildPortfolioData(
   items: PortfolioCollectionRow[],
-  wishlistCount: number,
-  activeListingsCount: number,
+  wishlistCount: number | null,
+  activeListingsCount: number | null,
 ): PortfolioData {
-  const totalItems = items.length;
-  const uniqueKeys = new Set(items.map(getItemUniqueKey));
-  const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
+  const normalizedItems = items.map((item) => normalizePortfolioRow(item));
+  const totalItems = normalizedItems.length;
+  const uniqueKeys = new Set(normalizedItems.map(getItemUniqueKey));
+  const totalQuantity = normalizedItems.reduce(
+    (sum, item) => sum + safeQuantity(item.quantity),
+    0,
+  );
 
   let cards = 0;
   let sealed = 0;
@@ -278,7 +419,7 @@ export function buildPortfolioData(
   let publicItems = 0;
   let featuredItems = 0;
 
-  for (const item of items) {
+  for (const item of normalizedItems) {
     if (item.item_kind === "sealed") {
       sealed += 1;
     } else {
@@ -306,31 +447,31 @@ export function buildPortfolioData(
       id: "cards" as const,
       label: "Cards",
       itemCount: nonGradedCards,
-      quantity: sumQuantity(items.filter((item) => item.item_kind === "card" && !isGradedCondition(item.condition))),
+      quantity: sumQuantity(normalizedItems.filter((item) => item.item_kind === "card" && !isGradedCondition(item.condition))),
       percentage: percentOf(nonGradedCards, totalItems),
     },
     {
       id: "sealed" as const,
       label: "Sealed",
       itemCount: sealed,
-      quantity: sumQuantity(items.filter((item) => item.item_kind === "sealed")),
+      quantity: sumQuantity(normalizedItems.filter((item) => item.item_kind === "sealed")),
       percentage: percentOf(sealed, totalItems),
     },
     {
       id: "graded" as const,
       label: "Graded",
       itemCount: graded,
-      quantity: sumQuantity(items.filter((item) => isGradedCondition(item.condition))),
+      quantity: sumQuantity(normalizedItems.filter((item) => isGradedCondition(item.condition))),
       percentage: percentOf(graded, totalItems),
     },
   ].filter((entry) => entry.itemCount > 0) satisfies PortfolioCategoryBreakdown[];
 
-  const topSets = buildTopSets(items, totalItems);
-  const rarityBreakdown = buildRarityBreakdown(items);
-  const collectionHealth = buildCollectionHealth(items, totalItems);
+  const topSets = buildTopSets(normalizedItems, totalItems);
+  const rarityBreakdown = buildRarityBreakdown(normalizedItems);
+  const collectionHealth = buildCollectionHealth(normalizedItems, totalItems);
 
-  const recentItems = items.slice(0, PORTFOLIO_RECENT_LIMIT).map(toItemPreview);
-  const featuredItemsList = items
+  const recentItems = normalizedItems.slice(0, PORTFOLIO_RECENT_LIMIT).map(toItemPreview);
+  const featuredItemsList = normalizedItems
     .filter((item) => item.is_featured)
     .slice(0, PORTFOLIO_FEATURED_LIMIT)
     .map(toItemPreview);
@@ -363,7 +504,7 @@ export function buildPortfolioData(
 }
 
 function sumQuantity(rows: PortfolioCollectionRow[]): number {
-  return rows.reduce((sum, row) => sum + row.quantity, 0);
+  return rows.reduce((sum, row) => sum + safeQuantity(row.quantity), 0);
 }
 
 function toItemPreview(item: PortfolioCollectionRow): PortfolioItemPreview {
@@ -400,7 +541,7 @@ function buildTopSets(items: PortfolioCollectionRow[], totalItems: number) {
     };
 
     group.uniqueKeys.add(getItemUniqueKey(item));
-    group.quantity += item.quantity;
+    group.quantity += safeQuantity(item.quantity);
 
     if (
       !group.representative ||
@@ -456,7 +597,7 @@ function buildRarityBreakdown(items: PortfolioCollectionRow[]): PortfolioRarityS
     withRarity += 1;
     const group = map.get(rarity) ?? { itemCount: 0, quantity: 0 };
     group.itemCount += 1;
-    group.quantity += item.quantity;
+    group.quantity += safeQuantity(item.quantity);
     map.set(rarity, group);
   }
 
@@ -590,6 +731,51 @@ export function collectPortfolioImageIds(data: PortfolioData): string[] {
   }
 
   return [...ids];
+}
+
+export async function loadPortfolioImagesSafe(
+  data: PortfolioData,
+  userId: string,
+): Promise<Map<string, { small: string; large: string }>> {
+  const { getCardImagesByIds } = await import("@/lib/pokemon-tcg");
+
+  let imageIds: string[] = [];
+
+  try {
+    imageIds = collectPortfolioImageIds(data);
+    logPortfolioPhase("image-id-extraction", "success", {
+      userId,
+      rowCount: imageIds.length,
+    });
+  } catch (error) {
+    logPortfolioPhase("image-id-extraction", "failure", {
+      userId,
+      ...serializeLoadError(error),
+    });
+    return new Map();
+  }
+
+  if (imageIds.length === 0) {
+    logPortfolioPhase("image-loading", "skipped", { userId, rowCount: 0 });
+    return new Map();
+  }
+
+  try {
+    const images = await getCardImagesByIds(imageIds);
+    logPortfolioPhase("image-loading", "success", {
+      userId,
+      rowCount: images.size,
+      requestedCount: imageIds.length,
+    });
+    return images;
+  } catch (error) {
+    logPortfolioPhase("image-loading", "failure", {
+      userId,
+      requestedCount: imageIds.length,
+      ...serializeLoadError(error),
+    });
+    return new Map();
+  }
 }
 
 export function getPortfolioItemImageUrl(

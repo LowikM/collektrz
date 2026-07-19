@@ -80,10 +80,20 @@ export function PortfolioHero({ totals }: PortfolioHeroProps) {
           <ProfileStatCard label="Featured" value={totals.featuredItems} />
         </MetricLink>
         <MetricLink href="/my-wishlist">
-          <ProfileStatCard label="Wishlist" value={totals.wishlistCount} />
+          <ProfileStatCard
+            label="Wishlist"
+            value={totals.wishlistCount ?? "—"}
+            hint={totals.wishlistCount === null ? "Unavailable" : undefined}
+          />
         </MetricLink>
         <MetricLink href="/my-listings">
-          <ProfileStatCard label="Active listings" value={totals.activeListingsCount} />
+          <ProfileStatCard
+            label="Active listings"
+            value={totals.activeListingsCount ?? "—"}
+            hint={
+              totals.activeListingsCount === null ? "Unavailable" : undefined
+            }
+          />
         </MetricLink>
       </div>
     </section>

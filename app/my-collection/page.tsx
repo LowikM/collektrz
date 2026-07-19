@@ -10,19 +10,23 @@ import {
 } from "@/components/CollectionManageList";
 import { CollectionViewNav } from "@/components/portfolio/CollectionViewNav";
 import { PortfolioExperience } from "@/components/portfolio/PortfolioExperience";
+import { PortfolioLoadError } from "@/components/portfolio/PortfolioLoadError";
 import {
   describeCollectionFilters,
   filterCollectionItems,
   hasActiveCollectionFilters,
   parseCollectionListFilters,
 } from "@/lib/collection-filters";
+import { USER_LOAD_ERROR } from "@/lib/db-errors";
 import { loadOwnerCollectionItems } from "@/lib/privacy-schema-queries";
-import { getCardImagesByIds } from "@/lib/pokemon-tcg";
 import {
-  collectPortfolioImageIds,
   loadPortfolioDataSafe,
+  loadPortfolioImagesSafe,
 } from "@/lib/portfolio";
+import { logPortfolioPhase, serializeLoadError } from "@/lib/portfolio-log";
 import { createClient } from "@/lib/supabase/server";
+
+export const dynamic = "force-dynamic";
 
 type MyCollectionSearchParams = {
   view?: string;
@@ -66,12 +70,48 @@ export default async function MyCollectionPage({
 
   const collectionFilters = parseCollectionListFilters(params);
 
-  const [collectionLoad, portfolioResult] = await Promise.all([
-    loadOwnerCollectionItems<ManageableCollectionItem>(supabase, user.id),
-    activeView === "portfolio"
-      ? loadPortfolioDataSafe(supabase, user.id)
-      : Promise.resolve(null),
-  ]);
+  const collectionLoad = await loadOwnerCollectionItems<ManageableCollectionItem>(
+    supabase,
+    user.id,
+  );
+
+  let portfolioResult: Awaited<ReturnType<typeof loadPortfolioDataSafe>> | null =
+    null;
+  let portfolioLoadError: string | null = null;
+  let portfolioData: NonNullable<
+    Extract<Awaited<ReturnType<typeof loadPortfolioDataSafe>>, { ok: true }>["data"]
+  > | null = null;
+  let cardImagesById = new Map<string, { small: string; large: string }>();
+
+  if (activeView === "portfolio") {
+    try {
+      portfolioResult = await loadPortfolioDataSafe(supabase, user.id);
+
+      if (portfolioResult.ok) {
+        portfolioData = portfolioResult.data;
+
+        try {
+          cardImagesById = await loadPortfolioImagesSafe(
+            portfolioResult.data,
+            user.id,
+          );
+        } catch (error) {
+          logPortfolioPhase("image-loading", "failure", {
+            userId: user.id,
+            ...serializeLoadError(error),
+          });
+        }
+      } else {
+        portfolioLoadError = portfolioResult.userMessage;
+      }
+    } catch (error) {
+      logPortfolioPhase("page-load", "failure", {
+        userId: user.id,
+        ...serializeLoadError(error),
+      });
+      portfolioLoadError = USER_LOAD_ERROR.portfolio;
+    }
+  }
 
   const allItems = collectionLoad.data;
   const collectionLoadError = collectionLoad.userMessage;
@@ -81,17 +121,7 @@ export default async function MyCollectionPage({
   const filteredItems = filterCollectionItems(allItems, collectionFilters);
   const filterDescription = describeCollectionFilters(collectionFilters);
   const showFilterBanner = hasActiveCollectionFilters(collectionFilters);
-
-  const portfolioData =
-    portfolioResult && portfolioResult.ok ? portfolioResult.data : null;
-  const portfolioLoadError =
-    portfolioResult && !portfolioResult.ok ? portfolioResult.userMessage : null;
   const portfolioSchemaDrift = Boolean(portfolioResult?.schemaDrift);
-
-  const cardImagesById =
-    activeView === "portfolio" && portfolioData
-      ? await getCardImagesByIds(collectPortfolioImageIds(portfolioData))
-      : new Map<string, { small: string; large: string }>();
 
   const maxWidthClass =
     activeView === "portfolio" ? "max-w-6xl" : "max-w-3xl";
@@ -193,15 +223,10 @@ export default async function MyCollectionPage({
         ) : null}
 
         {activeView === "portfolio" && portfolioLoadError ? (
-          <p
-            className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
-            role="alert"
-          >
-            {portfolioLoadError}
-          </p>
+          <PortfolioLoadError message={portfolioLoadError} />
         ) : null}
 
-        {showPortfolio ? (
+        {showPortfolio && portfolioData ? (
           <PortfolioExperience
             data={portfolioData}
             cardImagesById={cardImagesById}
