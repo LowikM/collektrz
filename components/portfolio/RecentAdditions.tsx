@@ -1,16 +1,20 @@
 import Link from "next/link";
 
+import { FeaturedCollection } from "@/components/portfolio/FeaturedCollection";
+import { PortfolioEmptyState } from "@/components/portfolio/PortfolioEmptyState";
+import { FadeInSection } from "@/components/portfolio/PortfolioMotion";
 import { ProfileSectionHeader } from "@/components/profile/ProfileSectionHeader";
 import {
-  profileBadgeClassName,
-  profileCardInteractiveClassName,
   profileImageGradientClassName,
   profileQtyBadgeClassName,
+  profileShowcaseCardClassName,
 } from "@/components/profile/profile-styles";
 import {
   getPortfolioItemImageUrl,
   type PortfolioItemPreview,
 } from "@/lib/portfolio";
+
+const RECENT_ADDITIONS_LIMIT = 6;
 
 type RecentAdditionsProps = {
   items: PortfolioItemPreview[];
@@ -18,14 +22,19 @@ type RecentAdditionsProps = {
 };
 
 function formatAddedDate(date: string) {
-  return new Date(date).toLocaleDateString(undefined, {
+  const parsed = Date.parse(date);
+  if (Number.isNaN(parsed)) {
+    return "Recently";
+  }
+
+  return new Date(parsed).toLocaleDateString(undefined, {
     month: "short",
     day: "numeric",
     year: "numeric",
   });
 }
 
-function PortfolioItemTile({
+function RecentCard({
   item,
   cardImagesById,
 }: {
@@ -35,14 +44,19 @@ function PortfolioItemTile({
   const imageUrl = getPortfolioItemImageUrl(item, cardImagesById);
 
   return (
-    <article className={`overflow-hidden ${profileCardInteractiveClassName}`}>
-      <div className={`relative aspect-[3/4] ${profileImageGradientClassName}`}>
+    <Link
+      href="/my-collection?view=collection"
+      className={`group block shrink-0 snap-start overflow-hidden ${profileShowcaseCardClassName} w-[min(72vw,220px)] sm:w-auto`}
+    >
+      <div
+        className={`relative aspect-[3/4] overflow-hidden ${profileImageGradientClassName}`}
+      >
         {imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={imageUrl}
             alt={item.card_name}
-            className="h-full w-full object-contain p-4"
+            className="h-full w-full object-contain p-4 transition-transform duration-500 ease-out group-hover:scale-105"
             loading="lazy"
           />
         ) : (
@@ -50,89 +64,73 @@ function PortfolioItemTile({
             {item.card_name}
           </div>
         )}
-        <div className="absolute left-3 top-3 flex flex-col gap-1">
-          <span className={profileQtyBadgeClassName}>×{item.quantity}</span>
-          <span className={profileBadgeClassName}>
-            {item.visibility === "public" ? "Public" : "Private"}
-          </span>
-          {item.is_featured ? (
-            <span className="rounded-full bg-amber-500/90 px-2 py-0.5 text-[10px] font-semibold text-white">
-              Featured
-            </span>
-          ) : null}
+        <span
+          className={`absolute right-3 top-3 ${profileQtyBadgeClassName} bg-white/90 shadow-sm dark:bg-zinc-900/90`}
+        >
+          ×{item.quantity}
+        </span>
+        <div className="absolute inset-x-0 bottom-0 translate-y-full bg-zinc-900/85 px-3 py-2 text-center text-xs font-semibold text-white transition-transform duration-300 group-hover:translate-y-0">
+          View Collection
         </div>
       </div>
       <div className="space-y-1 p-4">
-        <h3 className="line-clamp-2 text-sm font-semibold">{item.card_name}</h3>
-        {item.set_name ? (
-          <p className="truncate text-xs text-zinc-500">{item.set_name}</p>
-        ) : null}
-        <p className="text-xs text-zinc-400">Added {formatAddedDate(item.created_at)}</p>
+        <h3 className="line-clamp-2 text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+          {item.card_name}
+        </h3>
+        <p className="truncate text-xs text-zinc-500">
+          {item.set_name ?? "Set unknown"}
+        </p>
+        <p className="text-[11px] text-zinc-400">
+          Added {formatAddedDate(item.created_at)}
+        </p>
       </div>
-    </article>
+    </Link>
   );
 }
 
 export function RecentAdditions({ items, cardImagesById }: RecentAdditionsProps) {
-  if (items.length === 0) {
-    return null;
-  }
+  const visibleItems = items.slice(0, RECENT_ADDITIONS_LIMIT);
 
   return (
-    <section className="space-y-5">
-      <ProfileSectionHeader
-        title="Recent additions"
-        description="The newest pieces added to your collection."
-        actionLabel="Fast Add"
-        actionHref="/my-collection/add"
-      />
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {items.map((item) => (
-          <PortfolioItemTile
-            key={item.id}
-            item={item}
-            cardImagesById={cardImagesById}
+    <FadeInSection delayMs={120}>
+      <section className="space-y-5">
+        <ProfileSectionHeader
+          title="Recent Additions"
+          description="The newest pieces added to your collection."
+          actionLabel="Fast Add"
+          actionHref="/my-collection/add"
+        />
+
+        {visibleItems.length > 0 ? (
+          <div className="-mx-1 flex gap-4 overflow-x-auto px-1 pb-2 snap-x snap-mandatory scrollbar-none sm:grid sm:grid-cols-2 sm:overflow-visible lg:grid-cols-3 xl:grid-cols-6">
+            {visibleItems.map((item) => (
+              <RecentCard
+                key={item.id}
+                item={item}
+                cardImagesById={cardImagesById}
+              />
+            ))}
+          </div>
+        ) : (
+          <PortfolioEmptyState
+            icon="🃏"
+            title="No recent additions"
+            description="Add cards to your collection and they'll appear here as your latest picks."
+            actionLabel="Fast Add card"
+            actionHref="/my-collection/add"
+            secondaryActionLabel="View collection"
+            secondaryActionHref="/my-collection?view=collection"
+            compact
           />
-        ))}
-      </div>
-    </section>
+        )}
+      </section>
+    </FadeInSection>
   );
 }
 
-export function FeaturedPortfolioSection({
-  items,
-  cardImagesById,
-}: RecentAdditionsProps) {
-  return (
-    <section className="space-y-5">
-      <ProfileSectionHeader
-        title="Featured on profile"
-        description="Featured public items appear on your collector profile and QR page. Use the item menu in Collection to feature cards."
-        actionLabel="Manage collection"
-        actionHref="/my-collection?view=collection"
-      />
-      {items.length > 0 ? (
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          {items.map((item) => (
-            <PortfolioItemTile
-              key={item.id}
-              item={item}
-              cardImagesById={cardImagesById}
-            />
-          ))}
-        </div>
-      ) : (
-        <p className="rounded-2xl border border-dashed border-zinc-300 px-6 py-10 text-center text-sm text-zinc-500 dark:border-zinc-700">
-          No featured items yet. Feature public collection items to highlight them
-          on your profile.
-        </p>
-      )}
-      <p className="text-xs text-zinc-500">
-        Private featured items stay hidden from public profiles until marked
-        public.
-      </p>
-    </section>
-  );
+/** @deprecated Use FeaturedCollection — kept for any external imports */
+export function FeaturedPortfolioSection(props: RecentAdditionsProps) {
+  return <FeaturedCollection {...props} />;
 }
 
 export function PortfolioItemLinkGrid({
@@ -151,9 +149,7 @@ export function PortfolioItemLinkGrid({
   return (
     <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
       {items.map((item) => (
-        <Link key={item.id} href="/my-collection?view=collection">
-          <PortfolioItemTile item={item} cardImagesById={cardImagesById} />
-        </Link>
+        <RecentCard key={item.id} item={item} cardImagesById={cardImagesById} />
       ))}
     </div>
   );
