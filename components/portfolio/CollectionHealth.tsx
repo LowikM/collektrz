@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { buildCollectionFilterHref } from "@/components/portfolio/CollectionViewNav";
+import { buildCollectionFilterHref } from "@/lib/collection-filters";
 import { ProfileSectionHeader } from "@/components/profile/ProfileSectionHeader";
 import { profilePanelClassName } from "@/components/profile/profile-styles";
 import type { PortfolioHealthSignal } from "@/lib/portfolio";

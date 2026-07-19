@@ -57,36 +57,3 @@ export function CollectionViewNav({ activeView }: CollectionViewNavProps) {
     </nav>
   );
 }
-
-export function buildCollectionFilterHref(filters: {
-  kind?: "card" | "sealed";
-  set?: string;
-  visibility?: "public" | "private";
-  graded?: boolean;
-  raw?: boolean;
-}): string {
-  const params = new URLSearchParams();
-  params.set("view", "collection");
-
-  if (filters.kind) {
-    params.set("kind", filters.kind);
-  }
-
-  if (filters.set) {
-    params.set("set", filters.set);
-  }
-
-  if (filters.visibility) {
-    params.set("visibility", filters.visibility);
-  }
-
-  if (filters.graded) {
-    params.set("graded", "1");
-  }
-
-  if (filters.raw) {
-    params.set("raw", "1");
-  }
-
-  return `/my-collection?${params.toString()}`;
-}

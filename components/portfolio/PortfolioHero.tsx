@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-import { buildCollectionFilterHref } from "@/components/portfolio/CollectionViewNav";
+import { buildCollectionFilterHref } from "@/lib/collection-filters";
 import { ProfileStatCard } from "@/components/profile/ProfileStatCard";
 import {
   profileHeroGradientClassName,
